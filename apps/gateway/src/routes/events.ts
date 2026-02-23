@@ -1,8 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { listApprovals } from '../services/approvals';
+import { getOverviewAnalytics } from '../services/analytics';
 import { getDeniedQueue, getLatestPolicyTrace, getTimeline, listEvents } from '../services/events';
 
 export const eventsRoute: FastifyPluginAsync = async (app) => {
+  app.get('/overview', async (_request, reply) => {
+    const overview = await getOverviewAnalytics();
+    return reply.send(overview);
+  });
+
   app.get<{
     Querystring: {
       correlation_id?: string;

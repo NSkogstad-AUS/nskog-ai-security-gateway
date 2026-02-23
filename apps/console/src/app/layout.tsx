@@ -11,38 +11,39 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body
         style={{
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: '"IBM Plex Sans", "Segoe UI", -apple-system, sans-serif',
           margin: 0,
           padding: 0,
-          background: '#f8f9fa',
-          color: '#212529',
+          background:
+            'radial-gradient(circle at top left, #e2e8f0 0%, #f8fafc 35%, #eef2ff 100%)',
+          color: '#0f172a',
         }}
       >
         <nav
           style={{
-            background: '#1a1a2e',
-            color: '#e0e0e0',
-            padding: '0.75rem 2rem',
+            background: 'linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0b1120 100%)',
+            color: '#dbeafe',
+            padding: '0.8rem 2rem',
             display: 'flex',
             alignItems: 'center',
             gap: '1.5rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            boxShadow: '0 8px 20px rgba(2,6,23,0.28)',
           }}
         >
-          <strong style={{ fontSize: '1rem', color: '#fff' }}>
-            🛡 AI Security Gateway
+          <strong style={{ fontSize: '1rem', color: '#f8fafc' }}>
+            AI Security Gateway
           </strong>
-          <a href="/" style={{ color: '#90caf9', textDecoration: 'none', fontSize: '0.9rem' }}>
-            Home
+          <a href="/" style={{ color: '#bfdbfe', textDecoration: 'none', fontSize: '0.9rem' }}>
+            Dashboard
           </a>
           <a
             href="/events"
-            style={{ color: '#90caf9', textDecoration: 'none', fontSize: '0.9rem' }}
+            style={{ color: '#bfdbfe', textDecoration: 'none', fontSize: '0.9rem' }}
           >
-            Events
+            Operations
           </a>
         </nav>
-        <main style={{ padding: '2rem', maxWidth: '1100px', margin: '0 auto' }}>
+        <main style={{ padding: '2rem', maxWidth: '1180px', margin: '0 auto' }}>
           {children}
         </main>
       </body>

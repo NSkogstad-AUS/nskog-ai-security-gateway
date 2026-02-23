@@ -1,114 +1,174 @@
-export default function HomePage() {
+type OverviewResponse = {
+  generated_at: string;
+  policy_backend: string;
+  connectors: Array<{ name: string; risk_tier: string; description: string }>;
+  counters: {
+    total_events: number;
+    blocked_events: number;
+    pending_approvals: number;
+    approvals_approved: number;
+  };
+  event_type_counts: Array<{ event_type: string; count: number }>;
+  events_per_hour_24h: Array<{ bucket: string; count: number }>;
+};
+
+const gatewayBaseUrl = process.env.GATEWAY_URL ?? 'http://localhost:3001';
+
+async function fetchOverview(): Promise<OverviewResponse | null> {
+  try {
+    const res = await fetch(`${gatewayBaseUrl}/v1/overview`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()) as OverviewResponse;
+  } catch {
+    return null;
+  }
+}
+
+export default async function HomePage() {
+  const overview = await fetchOverview();
+  const hourly = overview?.events_per_hour_24h ?? [];
+  const maxHourly = Math.max(1, ...hourly.map((h) => h.count));
+
   return (
     <div>
-      <h1 style={{ marginTop: 0 }}>AI Security Gateway Console</h1>
+      <h1 style={{ marginTop: 0 }}>AI Security Gateway Application</h1>
       <p style={{ color: '#555' }}>
-        Use this console to inspect intercepted tool calls, policy decisions, and security events.
+        Unified operations dashboard for tool interception, policy enforcement, approvals, connectors, and exports.
       </p>
 
       <section
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: '1rem',
-          marginTop: '2rem',
+          marginTop: '1.5rem',
         }}
       >
-        <Card
-          title="Event Log"
-          description="Browse all intercepted tool calls and policy decisions."
-          href="/events"
-          badge="live"
+        <MetricCard title="Total Events" value={String(overview?.counters.total_events ?? 0)} />
+        <MetricCard title="Blocked / Denied" value={String(overview?.counters.blocked_events ?? 0)} />
+        <MetricCard
+          title="Pending Approvals"
+          value={String(overview?.counters.pending_approvals ?? 0)}
         />
-        <Card
-          title="Policy Engine"
-          description="LocalPolicyEngine active (stub). Configure OPA to enforce real rules."
-          href="#"
-          badge="stub"
-        />
-        <Card
-          title="Connectors"
-          description="web_search (MockConnector) registered. Add real connectors via ToolRegistry."
-          href="#"
-          badge="stub"
+        <MetricCard
+          title="Approvals Approved"
+          value={String(overview?.counters.approvals_approved ?? 0)}
         />
       </section>
 
       <section
         style={{
-          marginTop: '2.5rem',
-          padding: '1.25rem',
+          marginTop: '1rem',
+          padding: '1rem',
           background: '#fff',
           border: '1px solid #dee2e6',
           borderRadius: '6px',
         }}
       >
-        <h3 style={{ marginTop: 0 }}>Quick test</h3>
-        <pre
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center' }}>
+          <h3 style={{ margin: 0 }}>Runtime Overview</h3>
+          <a href="/events" style={{ color: '#1d4ed8', fontWeight: 600, textDecoration: 'none' }}>
+            Open Operations Console
+          </a>
+        </div>
+        <p style={{ color: '#555', marginBottom: '0.5rem' }}>
+          Policy backend: <strong>{overview?.policy_backend ?? 'unknown'}</strong>
+        </p>
+
+        <h4 style={{ marginBottom: '0.4rem' }}>Connectors</h4>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+          <thead>
+            <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
+              <th style={{ padding: '0.45rem 0.6rem', borderBottom: '1px solid #e5e7eb' }}>Name</th>
+              <th style={{ padding: '0.45rem 0.6rem', borderBottom: '1px solid #e5e7eb' }}>Risk</th>
+              <th style={{ padding: '0.45rem 0.6rem', borderBottom: '1px solid #e5e7eb' }}>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(overview?.connectors ?? []).map((c) => (
+              <tr key={c.name}>
+                <td style={{ padding: '0.45rem 0.6rem', borderBottom: '1px solid #f1f5f9' }}>{c.name}</td>
+                <td style={{ padding: '0.45rem 0.6rem', borderBottom: '1px solid #f1f5f9' }}>{c.risk_tier}</td>
+                <td style={{ padding: '0.45rem 0.6rem', borderBottom: '1px solid #f1f5f9' }}>{c.description}</td>
+              </tr>
+            ))}
+            {(overview?.connectors.length ?? 0) === 0 && (
+              <tr>
+                <td colSpan={3} style={{ padding: '0.7rem 0.6rem', color: '#6b7280' }}>
+                  No connectors registered.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <section
+        style={{
+          marginTop: '1rem',
+          padding: '1rem',
+          background: '#fff',
+          border: '1px solid #dee2e6',
+          borderRadius: '6px',
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Visualisations</h3>
+        <div
           style={{
-            background: '#f1f3f5',
-            padding: '1rem',
-            borderRadius: '4px',
-            fontSize: '0.85rem',
-            overflowX: 'auto',
+            display: 'grid',
+            gridTemplateColumns: '2fr 1fr',
+            gap: '1rem',
           }}
         >
-          {`curl -X POST http://localhost:3001/v1/intercept \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "agent_id": "agent-001",
-    "tool_name": "web_search",
-    "tool_args": { "query": "AI security" }
-  }'`}
-        </pre>
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.75rem' }}>
+            <strong style={{ fontSize: '0.9rem' }}>Events per hour (24h)</strong>
+            <div style={{ height: '180px', marginTop: '0.6rem', display: 'flex', alignItems: 'end', gap: '4px' }}>
+              {hourly.map((point) => (
+                <div
+                  key={point.bucket}
+                  title={`${new Date(point.bucket).toLocaleString()}: ${point.count}`}
+                  style={{
+                    flex: 1,
+                    height: `${Math.max(6, Math.round((point.count / maxHourly) * 100))}%`,
+                    background: 'linear-gradient(180deg, #2563eb, #1e40af)',
+                    borderRadius: '3px 3px 0 0',
+                  }}
+                />
+              ))}
+              {hourly.length === 0 && <span style={{ color: '#6b7280', fontSize: '0.86rem' }}>No data</span>}
+            </div>
+          </div>
+
+          <div style={{ border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.75rem' }}>
+            <strong style={{ fontSize: '0.9rem' }}>Top event types (24h)</strong>
+            <ul style={{ margin: '0.75rem 0 0', paddingLeft: '1rem' }}>
+              {(overview?.event_type_counts ?? []).slice(0, 8).map((t) => (
+                <li key={t.event_type} style={{ marginBottom: '0.35rem', fontSize: '0.86rem' }}>
+                  {t.event_type}: <strong>{t.count}</strong>
+                </li>
+              ))}
+              {(overview?.event_type_counts.length ?? 0) === 0 && (
+                <li style={{ color: '#6b7280', fontSize: '0.86rem' }}>No event data in last 24h</li>
+              )}
+            </ul>
+          </div>
+        </div>
       </section>
     </div>
   );
 }
 
-function Card({
-  title,
-  description,
-  href,
-  badge,
-}: {
-  title: string;
-  description: string;
-  href: string;
-  badge: string;
-}) {
+function MetricCard({ title, value }: { title: string; value: string }) {
   return (
-    <a
-      href={href}
+    <div
       style={{
-        display: 'block',
-        padding: '1.25rem',
+        padding: '1rem',
         background: '#fff',
         border: '1px solid #dee2e6',
         borderRadius: '6px',
-        textDecoration: 'none',
-        color: 'inherit',
-        transition: 'box-shadow 0.15s',
       }}
     >
-      <div
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
-      >
-        <strong>{title}</strong>
-        <span
-          style={{
-            fontSize: '0.7rem',
-            background: badge === 'live' ? '#d1fae5' : '#fef3c7',
-            color: badge === 'live' ? '#065f46' : '#92400e',
-            padding: '2px 6px',
-            borderRadius: '999px',
-            fontWeight: 600,
-          }}
-        >
-          {badge}
-        </span>
-      </div>
-      <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: '#555' }}>{description}</p>
-    </a>
+      <p style={{ margin: 0, color: '#64748b', fontSize: '0.78rem' }}>{title}</p>
+      <p style={{ margin: '0.35rem 0 0', fontSize: '1.4rem', fontWeight: 700 }}>{value}</p>
+    </div>
   );
 }
