@@ -15,12 +15,17 @@ export enum PolicyReasonCodeEnum {
   ToolUnknown = 'tool.unknown',
   ToolArgsInvalid = 'tool.args_invalid',
   PolicyDeny = 'policy.deny',
+  PolicyApprovalRequired = 'policy.approval_required',
 }
 
 export enum EventType {
   ToolCallProposed = 'ToolCallProposed',
   PolicyEvaluated = 'PolicyEvaluated',
   ToolCallExecuted = 'ToolCallExecuted',
+  ToolExecuted = 'ToolExecuted',
   ToolCallBlocked = 'ToolCallBlocked',
   InterceptCompleted = 'InterceptCompleted',
+  ApprovalRequested = 'ApprovalRequested',
+  ApprovalApproved = 'ApprovalApproved',
+  ApprovalDenied = 'ApprovalDenied',
 }

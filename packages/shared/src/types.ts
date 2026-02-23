@@ -26,7 +26,15 @@ export type PolicyReasonCode =
   | 'policy.allow.local_default'
   | 'tool.unknown'
   | 'tool.args_invalid'
-  | 'policy.deny';
+  | 'policy.deny'
+  | 'policy.approval_required';
+
+export type ApprovalStatus = 'pending' | 'approved' | 'denied';
+
+export interface ApprovalSummary {
+  id: string;
+  status: ApprovalStatus;
+}
 
 /**
  * Outcome returned by the policy engine after evaluating a ToolCallIntent.
@@ -39,6 +47,10 @@ export interface PolicyDecision {
   reason?: string;
   /** Machine-readable reason codes for downstream analytics */
   reason_codes: PolicyReasonCode[];
+  /** Whether tool execution must pause for explicit human approval */
+  approval_required?: boolean;
+  /** Approval state when approval is required */
+  approval?: ApprovalSummary;
   /** Sanitised args when result === 'redact' */
   redacted_args?: Record<string, unknown>;
   /** ISO 8601 timestamp of when the decision was made */
@@ -50,8 +62,12 @@ export type AgentSecurityEventType =
   | 'ToolCallProposed'
   | 'PolicyEvaluated'
   | 'ToolCallExecuted'
+  | 'ToolExecuted'
   | 'ToolCallBlocked'
-  | 'InterceptCompleted';
+  | 'InterceptCompleted'
+  | 'ApprovalRequested'
+  | 'ApprovalApproved'
+  | 'ApprovalDenied';
 
 /**
  * A single immutable entry in the event log.

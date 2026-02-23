@@ -9,6 +9,18 @@ import type { PolicyEngine } from './engine';
  */
 export class LocalPolicyEngine implements PolicyEngine {
   async decide(intent: ToolCallIntent): Promise<PolicyDecision> {
+    if (intent.risk_tier === 'admin') {
+      return {
+        correlation_id: intent.correlation_id,
+        result: 'allow',
+        risk_tier: intent.risk_tier,
+        reason: 'Admin-risk tools require explicit approval before execution',
+        reason_codes: ['policy.approval_required'],
+        approval_required: true,
+        evaluated_at: new Date().toISOString(),
+      };
+    }
+
     return {
       correlation_id: intent.correlation_id,
       result: 'allow',

@@ -33,9 +33,25 @@ export const PolicyDecisionSchema = {
       type: 'array',
       items: {
         type: 'string',
-        enum: ['policy.allow.local_default', 'tool.unknown', 'tool.args_invalid', 'policy.deny'],
+        enum: [
+          'policy.allow.local_default',
+          'tool.unknown',
+          'tool.args_invalid',
+          'policy.deny',
+          'policy.approval_required',
+        ],
       },
       minItems: 1,
+    },
+    approval_required: { type: 'boolean' },
+    approval: {
+      type: 'object',
+      required: ['id', 'status'],
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string', enum: ['pending', 'approved', 'denied'] },
+      },
+      additionalProperties: false,
     },
     redacted_args: { type: 'object' },
     evaluated_at: { type: 'string', format: 'date-time' },
