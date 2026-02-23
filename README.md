@@ -82,6 +82,17 @@ Intercept tool calls, validate args, evaluate policy, emit timeline events, opti
 - `GET /v1/events/{correlation_id}/timeline` – entire chronological chain for a correlation.
 - `GET /v1/events/{correlation_id}/policy-trace` – latest policy decision, engine, input hash, and trace details.
 
+## Tooling overview
+
+- **Interception layer** in `apps/gateway` validates the inbound intent, assigns a risk tier from the connector registry, and writes every phase of the intercept loop (`ToolCallProposed`, `PolicyEvaluated`, `ToolCallBlocked`, approval events) to Postgres via `apps/gateway/src/services/event-pipeline.ts`.
+- **Connectors** (see `packages/connectors`) declare the tool name, JSON schema, and risk tier. You already have `MockConnector` (`web_search`) and `ServiceNowConnector` (`sn_create_incident`) with scoped credentials. Register new connectors in `apps/gateway/src/index.ts`.
+- **Policy engines** live in `packages/policy`: `LocalPolicyEngine` (always allows but flags admin-risk tools for approval), `OPAPolicyEngine` (calls OPA REST API, maps `allow`/`deny`/`redact`, records traces and reason codes). The gateway selects the engine via `POLICY_BACKEND` and logs `policy_input_hash` + trace for auditing.
+- **Approvals** are modeled as immutable events. Creating/transitioning approvals happens through `apps/gateway/src/routes/approvals.ts`, but every change writes to the event log so the console and analytics can derive approval queue state.
+- **Exporters**: `packages/exporters` hosts an exporter dispatcher; Splunk HEC exporter sends each event with retries, idempotency key (`correlation_id:event_id`), and optional index/source/sourcetype/host metadata configured in `.env`.
+- **Console**: 
+  - `/` dashboard calls `GET /v1/overview` to power KPI cards, connector table, hourly histogram, and event-type list.
+  - `/events` uses `/v1/queue`, `/timeline`, and `/policy-trace` to show denied calls, approvals, timelines, and policy trace JSON.
+
 ## Console snapshot (/events)
 
 Minimal but useful operations console:
