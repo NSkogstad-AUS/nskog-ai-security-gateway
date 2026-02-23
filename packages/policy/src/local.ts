@@ -8,6 +8,8 @@ import type { PolicyEngine } from './engine';
  * Replace with rule-based logic or swap for OPAPolicyEngine before production.
  */
 export class LocalPolicyEngine implements PolicyEngine {
+  readonly name = 'local';
+
   async decide(intent: ToolCallIntent): Promise<PolicyDecision> {
     if (intent.risk_tier === 'admin') {
       return {

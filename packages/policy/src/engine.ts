@@ -8,6 +8,8 @@ import type { ToolCallIntent, PolicyDecision } from '@ai-security-gateway/shared
  * startup so the implementation can be swapped without changing route code.
  */
 export interface PolicyEngine {
+  /** Identifier for logs and telemetry (e.g., local, opa). */
+  readonly name: string;
   /**
    * Evaluate a tool call intent and return a policy decision.
    *

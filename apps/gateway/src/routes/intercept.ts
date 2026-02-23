@@ -3,13 +3,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { ToolCallIntent, PolicyDecision, AgentSecurityEventType } from '@ai-security-gateway/shared';
 import { globalRegistry } from '@ai-security-gateway/connectors';
 import { validate } from '@ai-security-gateway/validation';
-import { LocalPolicyEngine } from '@ai-security-gateway/policy';
 import { createApprovalRequest } from '../services/approvals';
 import { recordEvent } from '../services/event-pipeline';
-
-// Inject a concrete policy engine here.
-// Swap to OPAPolicyEngine once an OPA server is running.
-const policyEngine = new LocalPolicyEngine();
+import { evaluatePolicy } from '../services/policy';
 
 export const interceptRoute: FastifyPluginAsync = async (app) => {
   /**
@@ -181,8 +177,14 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
         }
 
         // 4) Run policy decision.
-        const decision = await policyEngine.decide(intent);
-        await emitTimelineEvent('PolicyEvaluated', 'policy.evaluated', { decision });
+        const policyEval = await evaluatePolicy(intent);
+        const decision = policyEval.decision;
+        await emitTimelineEvent('PolicyEvaluated', 'policy.evaluated', {
+          policy_engine: policyEval.engine,
+          policy_input_hash: policyEval.input_hash,
+          decision_output: decision,
+          decision,
+        });
 
         // 5) Denied decisions emit a blocked event.
         if (decision.result === 'deny') {

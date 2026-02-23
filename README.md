@@ -13,9 +13,9 @@ packages/
   shared/         TypeScript types, JSON schemas, enums
   validation/     Ajv 2020-12 instance + tool-arg validation helpers
   eventlog/       Postgres client + append-only events table + migrations
-  policy/         PolicyEngine interface + LocalPolicyEngine stub + OPA client stub
-  connectors/     ToolRegistry + MockConnector stub
-  exporters/      Placeholder for future exporters (Splunk, ServiceNow…)
+  policy/         PolicyEngine interface + LocalPolicyEngine + OPA client
+  connectors/     ToolRegistry + MockConnector + ServiceNow connector
+  exporters/      Event exporters (Splunk HEC)
 ```
 
 ## Prerequisites
@@ -144,15 +144,13 @@ draft-07 `Ajv` instance — they validate different keywords and can silently di
 Add new tool schemas to `toolArgSchemas` in `packages/validation/src/validate.ts`.
 
 ### Policy engine
-`LocalPolicyEngine` allows every request (stub). To switch to OPA:
+The gateway supports both local and OPA policy backends. Set:
 
-```typescript
-// apps/gateway/src/index.ts
-import { OPAPolicyEngine } from '@ai-security-gateway/policy';
-const policyEngine = new OPAPolicyEngine({ baseUrl: process.env.OPA_URL! });
-```
+- `POLICY_BACKEND=local` (default), or
+- `POLICY_BACKEND=opa` with `OPA_BASE_URL` (and optional `OPA_POLICY_PATH`, `OPA_TIMEOUT_MS`).
 
-Then complete the `decide()` implementation in `packages/policy/src/opa-client.ts`.
+When OPA is enabled, the gateway sends `{"input": <ToolCallIntent>}` to
+`POST /v1/data/{OPA_POLICY_PATH}` and logs `policy_input_hash` plus the decision output.
 
 ### Adding a real connector
 1. Implement `ToolConnector` in `packages/connectors/src/`.
@@ -168,6 +166,12 @@ Then complete the `decide()` implementation in `packages/policy/src/opa-client.t
 | `PORT` | `3001` | HTTP port |
 | `DATABASE_URL` | — | Postgres connection string |
 | `LOG_LEVEL` | `info` | Fastify log level |
+| `POLICY_BACKEND` | `local` | Policy backend (`local` or `opa`) |
+| `OPA_BASE_URL` | `http://localhost:8181` | OPA base URL (required when backend is `opa`) |
+| `OPA_POLICY_PATH` | `gateway/policy` | OPA data path under `/v1/data` |
+| `OPA_TIMEOUT_MS` | `5000` | OPA request timeout in milliseconds |
+| `SERVICENOW_ENABLED` | `false` | Enable ServiceNow connector |
+| `SPLUNK_HEC_ENABLED` | `false` | Enable Splunk HEC exporter |
 
 ## CI
 

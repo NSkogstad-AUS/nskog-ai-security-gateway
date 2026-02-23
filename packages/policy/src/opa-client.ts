@@ -25,21 +25,14 @@ export interface OPAClientOptions {
  *   Content-Type: application/json
  *   Body: { "input": <ToolCallIntent> }
  *
- * Expected OPA response shape:
- *   { "result": { "allow": boolean, "reason": string } }
- *
- * Rego policy skeleton (save as gateway/policy.rego in your OPA bundle):
- *   package gateway.policy
- *   default allow = false
- *   allow { not deny }
- *   deny { ... your rules ... }
+ * Supported OPA response shapes:
+ *   { "result": { "result": "allow"|"deny"|"redact", ... } }
+ *   { "result": { "allow": boolean, ... } }
  *
  * @see https://www.openpolicyagent.org/docs/latest/rest-api/
- *
- * NOT YET IMPLEMENTED – throws on first call.
- * Complete the `decide()` body once an OPA server is available.
  */
 export class OPAPolicyEngine implements PolicyEngine {
+  readonly name = 'opa';
   private readonly baseUrl: string;
   private readonly policyPath: string;
   private readonly timeoutMs: number;
@@ -55,32 +48,129 @@ export class OPAPolicyEngine implements PolicyEngine {
     return `${this.baseUrl}/v1/data/${this.policyPath}`;
   }
 
-  async decide(_intent: ToolCallIntent): Promise<PolicyDecision> {
-    // TODO: implement OPA REST call
-    //
-    // const controller = new AbortController();
-    // const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    // try {
-    //   const res = await fetch(this.queryUrl, {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ input: _intent }),
-    //     signal: controller.signal,
-    //   });
-    //   const body = await res.json() as { result: { allow: boolean; reason?: string } };
-    //   return {
-    //     correlation_id: _intent.correlation_id,
-    //     result: body.result.allow ? 'allow' : 'deny',
-    //     reason: body.result.reason,
-    //     evaluated_at: new Date().toISOString(),
-    //   };
-    // } finally {
-    //   clearTimeout(timer);
-    // }
+  async decide(intent: ToolCallIntent): Promise<PolicyDecision> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    throw new Error(
-      `OPAPolicyEngine is not yet implemented. ` +
-        `Start an OPA server and complete the REST integration at ${this.queryUrl}`,
-    );
+    try {
+      const res = await fetch(this.queryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ input: intent }),
+        signal: controller.signal,
+      });
+
+      const body = (await res.json().catch(() => ({}))) as {
+        result?: Record<string, unknown>;
+      };
+      const result = body.result ?? {};
+      if (!res.ok) {
+        return denyDecision(intent, `OPA request failed (${res.status})`, ['policy.deny']);
+      }
+
+      const mappedResult = mapResult(result);
+      return {
+        correlation_id: intent.correlation_id,
+        result: mappedResult.result,
+        risk_tier: intent.risk_tier,
+        reason: mappedResult.reason,
+        reason_codes: mappedResult.reason_codes,
+        ...(mappedResult.approval_required !== undefined
+          ? { approval_required: mappedResult.approval_required }
+          : {}),
+        ...(mappedResult.redacted_args ? { redacted_args: mappedResult.redacted_args } : {}),
+        evaluated_at: new Date().toISOString(),
+      };
+    } catch (err) {
+      return denyDecision(
+        intent,
+        `OPA evaluation failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        ['policy.deny'],
+      );
+    } finally {
+      clearTimeout(timer);
+    }
   }
+}
+
+function denyDecision(
+  intent: ToolCallIntent,
+  reason: string,
+  reason_codes: PolicyDecision['reason_codes'],
+): PolicyDecision {
+  return {
+    correlation_id: intent.correlation_id,
+    result: 'deny',
+    risk_tier: intent.risk_tier,
+    reason,
+    reason_codes,
+    evaluated_at: new Date().toISOString(),
+  };
+}
+
+function mapResult(result: Record<string, unknown>): {
+  result: PolicyDecision['result'];
+  reason?: string;
+  reason_codes: PolicyDecision['reason_codes'];
+  approval_required?: boolean;
+  redacted_args?: Record<string, unknown>;
+} {
+  const resultValue = result.result;
+  if (resultValue === 'allow' || resultValue === 'deny' || resultValue === 'redact') {
+    return {
+      result: resultValue,
+      reason: typeof result.reason === 'string' ? result.reason : undefined,
+      reason_codes: normalizeReasonCodes(result.reason_codes, resultValue),
+      approval_required:
+        typeof result.approval_required === 'boolean' ? result.approval_required : undefined,
+      redacted_args: isRecord(result.redacted_args) ? result.redacted_args : undefined,
+    };
+  }
+
+  if (typeof result.allow === 'boolean') {
+    const mapped = result.allow ? 'allow' : 'deny';
+    return {
+      result: mapped,
+      reason: typeof result.reason === 'string' ? result.reason : undefined,
+      reason_codes: normalizeReasonCodes(result.reason_codes, mapped),
+      approval_required:
+        typeof result.approval_required === 'boolean' ? result.approval_required : undefined,
+      redacted_args: isRecord(result.redacted_args) ? result.redacted_args : undefined,
+    };
+  }
+
+  return {
+    result: 'deny',
+    reason: 'OPA result missing valid decision fields',
+    reason_codes: ['policy.deny'],
+  };
+}
+
+function normalizeReasonCodes(
+  value: unknown,
+  result: PolicyDecision['result'],
+): PolicyDecision['reason_codes'] {
+  const allowed = new Set<PolicyDecision['reason_codes'][number]>([
+    'policy.allow.local_default',
+    'tool.unknown',
+    'tool.args_invalid',
+    'policy.deny',
+    'policy.approval_required',
+  ]);
+
+  if (Array.isArray(value)) {
+    const filtered = value
+      .filter((item): item is string => typeof item === 'string')
+      .filter((item): item is PolicyDecision['reason_codes'][number] =>
+        allowed.has(item as PolicyDecision['reason_codes'][number]),
+      );
+    if (filtered.length > 0) return filtered;
+  }
+
+  if (result === 'deny') return ['policy.deny'];
+  return ['policy.allow.local_default'];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

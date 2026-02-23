@@ -4,6 +4,7 @@ import { globalRegistry } from '@ai-security-gateway/connectors';
 import { MockConnector } from '@ai-security-gateway/connectors';
 import { ServiceNowConnector } from '@ai-security-gateway/connectors';
 import { SplunkHECExporter, globalEventExportDispatcher } from '@ai-security-gateway/exporters';
+import { configurePolicyEngineFromEnv } from './services/policy';
 
 const port = parseInt(process.env.PORT ?? '3001', 10);
 const logLevel = (process.env.LOG_LEVEL ?? 'info') as string;
@@ -95,6 +96,7 @@ async function main() {
   globalRegistry.register(new MockConnector());
   registerServiceNowConnectorIfConfigured();
   registerSplunkExporterIfConfigured();
+  configurePolicyEngineFromEnv();
 
   // Run DB migrations before accepting traffic
   await runMigrations();
