@@ -1,6 +1,6 @@
 # AI Security Gateway
 
-A collaborate-first security gateway that inspects AI agent tool calls, enforces policy, records an immutable audit trail, and exports events to downstream systems (Splunk, approval queues, etc.).
+An AI security gate that watches every tool request made by agents, validates the arguments before execution, enforces configurable policy (local or OPA), records every phase in an append-only event log, exports those events to systems like Splunk, and feeds a console/dashboard so you can trace a correlation, review approvals, and understand which rule fired and why. The UI surfaces KPIs, connector inventory, event trends, and a queue of denied calls plus pending approvals, making the guardrail transparent instead of a black box.
 
 ## Repo layout
 ```
