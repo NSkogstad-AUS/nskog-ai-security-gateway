@@ -1,181 +1,153 @@
 # AI Security Gateway
 
-A monorepo scaffold for an AI agent security gateway — intercepts tool calls made by AI agents, validates arguments, evaluates policy, and writes an immutable audit log.
+A collaborate-first security gateway that inspects AI agent tool calls, enforces policy, records an immutable audit trail, and exports events to downstream systems (Splunk, approval queues, etc.).
 
-## Repo Structure
-
+## Repo layout
 ```
 apps/
-  gateway/        Fastify API  – POST /v1/intercept
-  console/        Next.js admin UI (App Router)
+  gateway/        Fastify v4 API – POST /v1/intercept + approvals/events routes
+  console/        Next.js App Router admin UI (queue + timelines + traces)
 
 packages/
-  shared/         TypeScript types, JSON schemas, enums
-  validation/     Ajv 2020-12 instance + tool-arg validation helpers
-  eventlog/       Postgres client + append-only events table + migrations
-  policy/         PolicyEngine interface + LocalPolicyEngine + OPA client
-  connectors/     ToolRegistry + MockConnector + ServiceNow connector
-  exporters/      Event exporters (Splunk HEC)
+  shared/         Types, enums, JSON schemas shared across the stack
+  validation/     Ajv 2020-12 instance + per-tool `tool_args` schemas
+  eventlog/       Postgres client + append-only `events` table + migrations
+  connectors/     ToolRegistry + Mock + ServiceNow connector + schema registry
+  policy/         PolicyEngine interface + local stub + fully working OPA client
+  exporters/      Event exporter framework + Splunk HEC implementation
 ```
 
 ## Prerequisites
 
-| Tool | Version |
+| Tool | Minimum |
 |------|---------|
-| [Node.js](https://nodejs.org/) | ≥ 20 |
-| [pnpm](https://pnpm.io/) | ≥ 9 (`npm i -g pnpm`) |
-| [Docker](https://www.docker.com/) | any recent version |
+| Node.js | 20 |
+| pnpm | 9 (`npm i -g pnpm`) |
+| Docker | Recent release (used for Postgres via docker compose) |
 
-## Quick Start
+## Getting started
 
 ```bash
-# 1. Install all workspace dependencies
+# 1. Install deps for every workspace
 pnpm install
 
-# 2. Start Postgres
+# 2. Bring up Postgres
 docker compose up -d
 
-# 3. Copy environment files
+# 3. Copy sample env files
 cp apps/gateway/.env.example       apps/gateway/.env
 cp packages/eventlog/.env.example  packages/eventlog/.env
 
-# 4. Build all packages (required before first dev run)
+# 4. Build all packages (required before the first dev run)
 pnpm build
 
-# 5. Start all services in watch mode
+# 5. Start watch/dev mode
 pnpm dev
 ```
 
 - Gateway: http://localhost:3001
-- Console:  http://localhost:3000
-- Postgres: localhost:5432 (user `gateway`, password `gateway_dev`, db `ai_gateway`)
+- Console: http://localhost:3000
+- Postgres: localhost:5432 (`gateway:gateway_dev`, db `ai_gateway`)
 
-> **Note:** Run `pnpm build` at least once before `pnpm dev`. The gateway is started
-> with `tsx watch` (which transpiles TypeScript on the fly), but it imports compiled
-> `dist/` outputs from the other packages. Turbo's `dev` task depends on `^build`
-> so dependencies are compiled before the servers start on the first run.
+> Note: `pnpm dev` relies on compiled `dist/` outputs from the packages, so build first.
 
-## Example: POST /v1/intercept
+## Core user flows
 
-```bash
-curl -X POST http://localhost:3001/v1/intercept \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "agent-001",
-    "tool_name": "web_search",
-    "tool_args": {
-      "query": "latest AI security vulnerabilities",
-      "max_results": 5
-    }
-  }'
-```
+### POST /v1/intercept
 
-Expected response (`200 OK`):
+Intercept tool calls, validate args, evaluate policy, emit timeline events, optionally request approvals, and return structured decisions.
 
 ```json
 {
-  "correlation_id": "3f7b1c4e-...",
-  "result": "allow",
-  "reason": "LocalPolicyEngine stub – all requests allowed",
-  "evaluated_at": "2025-01-01T00:00:00.000Z"
+  "agent_id": "agent-001",
+  "tool_name": "web_search",
+  "tool_args": { "query": "AI security" }
 }
 ```
 
-Supply your own `correlation_id` to correlate multiple events:
+- Validation errors return `400` with details.
+- Policy denies return `403` with `reason_codes` and timeline events.
+- `approval_required` decisions return `202` plus `approval.id`; approve/deny happens via the approvals API.
 
-```bash
-curl -X POST http://localhost:3001/v1/intercept \
-  -H "Content-Type: application/json" \
-  -d '{
-    "correlation_id": "session-abc-123",
-    "agent_id": "agent-001",
-    "tool_name": "web_search",
-    "tool_args": { "query": "test query" }
-  }'
-```
+### Approval APIs
 
-Invalid `tool_args` return `400`:
+- `POST /v1/approvals` – create a review request from an intercept or manual invocation.
+- `GET /v1/approvals?status=pending` – pull pending approval queue.
+- `POST /v1/approvals/{id}/approve` or `/deny` – transition the approval, emit `ApprovalApproved`/`ApprovalDenied` and `ToolExecuted` when approved.
 
-```bash
-curl -X POST http://localhost:3001/v1/intercept \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "agent-001",
-    "tool_name": "web_search",
-    "tool_args": {}
-  }'
-# → 400 { "error": "tool_args validation failed", "details": ["/ must have required property 'query'"] }
-```
+### Events + timelines
 
-## Development Commands
+- `GET /v1/queue` – read-only view of denied tool calls + pending approvals.
+- `GET /v1/events?limit=...` – recent events, optional `correlation_id`/`event_type` filters.
+- `GET /v1/events/{correlation_id}/timeline` – entire chronological chain for a correlation.
+- `GET /v1/events/{correlation_id}/policy-trace` – latest policy decision, engine, input hash, and trace details.
+
+## Console snapshot (/events)
+
+Minimal but useful operations console:
+
+1. Correlation timeline viewer (enter a `correlation_id` to see ordered events).
+2. Incident/approval queue table showing denied calls + pending approvals.
+3. Policy trace panel that surfaces engine, input hash, and trace/decision JSON.
+
+## Architecture highlights
+
+- **Connectors & risk tiers**: Each connector (e.g., `web_search`, `sn_create_incident`) declares a risk tier and JSON schema. ServiceNow connector runs with scoped creds via env config.
+- **Policy backends**: Default `LocalPolicyEngine` stub plus optional `OPAPolicyEngine` (`POLICY_BACKEND=opa`). Each evaluation emits `policy_input_hash`, `policy_engine`, and optional `policy_trace` for logging.
+- **Approvals**: Approval state is derived from append-only events (`ApprovalRequested`, `ApprovalApproved`, `ApprovalDenied`, `ToolExecuted`). The console and APIs read the timeline view.
+- **Event export pipeline**: Events are written to Postgres then dispatched to exporters. Splunk HEC exporter sends single-event payloads with retry/jitter and idempotency key `correlation_id:event_id`.
+
+## Environment variables (`apps/gateway/.env`)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PORT` | `3001` | HTTP port for gateway |
+| `DATABASE_URL` | — | Postgres connection string |
+| `LOG_LEVEL` | `info` | Fastify log level |
+| `POLICY_BACKEND` | `local` | `local` or `opa` |
+| `OPA_BASE_URL` | `http://localhost:8181` | Required when backend=opa |
+| `OPA_POLICY_PATH` | `gateway/policy` | OPA data path at `/v1/data/...` |
+| `OPA_TIMEOUT_MS` | `5000` | Timeout for OPA REST call |
+| `SERVICENOW_ENABLED` | `false` | Register ServiceNow connector |
+| `SERVICENOW_AUTH_MODE` | `basic` | Or `oauth_client_credentials` |
+| `SERVICENOW_USERNAME`/`PASSWORD` | — | Required for basic auth |
+| `SERVICENOW_CLIENT_ID`/`SECRET` | — | Required for OAuth flow |
+| `SPLUNK_HEC_ENABLED` | `false` | Enable Splunk HEC exporter |
+| `SPLUNK_HEC_URL` | `https://splunk.example.com:8088/services/collector/event` | HEC endpoint |
+| `SPLUNK_HEC_TOKEN` | — | HEC ingestion token |
+| `SPLUNK_HEC_INDEX` | — | Optional Splunk index |
+| `SPLUNK_HEC_SOURCE` | `ai-security-gateway` | Optional source override |
+| `SPLUNK_HEC_SOURCETYPE` | `agent_security_event` | Optional sourcetype override |
+| `SPLUNK_HEC_HOST` | — | Optional host metadata |
+| `SPLUNK_HEC_MAX_RETRIES` | `3` | Retry attempts |
+| `SPLUNK_HEC_RETRY_BASE_DELAY_MS` | `300` | Backoff base (ms) |
+| `SPLUNK_HEC_TIMEOUT_MS` | `5000` | HTTP request timeout |
+
+## Development commands
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start all apps + packages in watch mode |
-| `pnpm build` | Build all packages and apps |
-| `pnpm lint` | Lint all workspaces |
-| `pnpm typecheck` | TypeScript type-check all workspaces |
-| `pnpm test` | Run test suites (placeholder — returns 0) |
-| `pnpm format` | Prettier-format all `.ts`, `.tsx`, `.json`, `.md` |
+| `pnpm dev` | Start gateway + console + packages in watch mode |
+| `pnpm build` | Build all packages + apps |
+| `pnpm lint` | Run ESLint across the repo |
+| `pnpm typecheck` | TypeScript type checking |
+| `pnpm test` | Runs placeholder suites (returns 0) |
+| `pnpm format` | Format `.ts/.tsx/.json/.md` files |
 
-### Run migrations manually
+### Manual migrations
 
 ```bash
 DATABASE_URL=postgres://gateway:gateway_dev@localhost:5432/ai_gateway \
   pnpm --filter @ai-security-gateway/eventlog migrate
 ```
 
-### Filter to a single workspace
+### Filtering workspaces
 
 ```bash
-pnpm --filter gateway dev          # gateway only
+pnpm --filter gateway dev        # gateway only
 pnpm --filter @ai-security-gateway/shared build
 ```
 
-## Architecture Notes
+## Testing & CI
 
-### Append-only event log
-The `events` Postgres table is intentionally INSERT-only. The only write path is
-`appendEvent()` in `packages/eventlog`. No update or delete operations are provided.
-
-### Ajv draft 2020-12
-`packages/validation` exports a single `Ajv2020` instance. Do **not** mix it with a
-draft-07 `Ajv` instance — they validate different keywords and can silently disagree.
-Add new tool schemas to `toolArgSchemas` in `packages/validation/src/validate.ts`.
-
-### Policy engine
-The gateway supports both local and OPA policy backends. Set:
-
-- `POLICY_BACKEND=local` (default), or
-- `POLICY_BACKEND=opa` with `OPA_BASE_URL` (and optional `OPA_POLICY_PATH`, `OPA_TIMEOUT_MS`).
-
-When OPA is enabled, the gateway sends `{"input": <ToolCallIntent>}` to
-`POST /v1/data/{OPA_POLICY_PATH}` and logs `policy_input_hash` plus the decision output.
-
-### Adding a real connector
-1. Implement `ToolConnector` in `packages/connectors/src/`.
-2. Add the connector's `argsSchema` to `toolArgSchemas` in `packages/validation`.
-3. Register the connector in `apps/gateway/src/index.ts` via `globalRegistry.register()`.
-
-## Environment Variables
-
-### `apps/gateway/.env`
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3001` | HTTP port |
-| `DATABASE_URL` | — | Postgres connection string |
-| `LOG_LEVEL` | `info` | Fastify log level |
-| `POLICY_BACKEND` | `local` | Policy backend (`local` or `opa`) |
-| `OPA_BASE_URL` | `http://localhost:8181` | OPA base URL (required when backend is `opa`) |
-| `OPA_POLICY_PATH` | `gateway/policy` | OPA data path under `/v1/data` |
-| `OPA_TIMEOUT_MS` | `5000` | OPA request timeout in milliseconds |
-| `SERVICENOW_ENABLED` | `false` | Enable ServiceNow connector |
-| `SPLUNK_HEC_ENABLED` | `false` | Enable Splunk HEC exporter |
-
-## CI
-
-GitHub Actions workflow at `.github/workflows/ci.yml`:
-- Spins up a Postgres service container
-- Runs `pnpm install --frozen-lockfile`
-- Runs `pnpm build` → `pnpm typecheck` → `pnpm lint` → `pnpm test`
+- CI workflow `.github/workflows/ci.yml` boots Postgres, runs `pnpm install --frozen-lockfile`, then `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`.
