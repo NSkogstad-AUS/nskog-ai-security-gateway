@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-security-gateway/connectors": "workspace:*",
     "@ai-security-gateway/eventlog": "workspace:*",
+    "@ai-security-gateway/exporters": "workspace:^",
     "@ai-security-gateway/policy": "workspace:*",
     "@ai-security-gateway/shared": "workspace:*",
     "@ai-security-gateway/validation": "workspace:*",

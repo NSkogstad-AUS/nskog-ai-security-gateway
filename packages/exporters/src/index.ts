@@ -1,11 +1,3 @@
-/**
- * Placeholder for future event exporters (Splunk, ServiceNow, webhooks, etc.).
- *
- * Each exporter should implement the EventExporter interface below and be
- * registered with the gateway at startup. The gateway will call `export()`
- * after each PolicyEvaluated event once this package is wired in.
- */
-
 import type { AgentSecurityEvent } from '@ai-security-gateway/shared';
 
 export interface EventExporter {
@@ -17,3 +9,23 @@ export interface EventExporter {
    */
   export(events: AgentSecurityEvent[]): Promise<void>;
 }
+
+export class EventExportDispatcher {
+  private readonly exporters: EventExporter[] = [];
+
+  register(exporter: EventExporter): this {
+    this.exporters.push(exporter);
+    return this;
+  }
+
+  async exportEvent(event: AgentSecurityEvent): Promise<void> {
+    for (const exporter of this.exporters) {
+      await exporter.export([event]);
+    }
+  }
+}
+
+export const globalEventExportDispatcher = new EventExportDispatcher();
+
+export type { SplunkHECExporterOptions } from './splunk-hec';
+export { SplunkHECExporter } from './splunk-hec';

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
-import { appendEvent, getPool } from '@ai-security-gateway/eventlog';
+import { getPool } from '@ai-security-gateway/eventlog';
 import type { ApprovalStatus, ToolRiskTier } from '@ai-security-gateway/shared';
+import { recordEvent } from './event-pipeline';
 
 type ApprovalEventType = 'ApprovalRequested' | 'ApprovalApproved' | 'ApprovalDenied';
 
@@ -33,7 +34,7 @@ export async function createApprovalRequest(input: CreateApprovalInput): Promise
   const approvalId = input.approval_id ?? randomUUID();
 
   if (input.emit_event !== false) {
-    await appendEvent({
+    await recordEvent({
       id: randomUUID(),
       correlation_id: input.correlation_id,
       event_type: 'ApprovalRequested',
@@ -205,7 +206,7 @@ export async function transitionApproval(
   const nextEventType = input.action === 'approve' ? 'ApprovalApproved' : 'ApprovalDenied';
   const nextStatus: ApprovalStatus = input.action === 'approve' ? 'approved' : 'denied';
 
-  await appendEvent({
+  await recordEvent({
     id: randomUUID(),
     correlation_id: correlationId,
     event_type: nextEventType,
@@ -219,7 +220,7 @@ export async function transitionApproval(
   });
 
   if (input.action === 'approve') {
-    await appendEvent({
+    await recordEvent({
       id: randomUUID(),
       correlation_id: correlationId,
       event_type: 'ToolExecuted',

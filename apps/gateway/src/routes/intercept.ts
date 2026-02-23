@@ -4,8 +4,8 @@ import type { ToolCallIntent, PolicyDecision, AgentSecurityEventType } from '@ai
 import { globalRegistry } from '@ai-security-gateway/connectors';
 import { validate } from '@ai-security-gateway/validation';
 import { LocalPolicyEngine } from '@ai-security-gateway/policy';
-import { appendEvent } from '@ai-security-gateway/eventlog';
 import { createApprovalRequest } from '../services/approvals';
+import { recordEvent } from '../services/event-pipeline';
 
 // Inject a concrete policy engine here.
 // Swap to OPAPolicyEngine once an OPA server is running.
@@ -100,7 +100,7 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
           payload: Record<string, unknown>,
         ) => {
           timelineStep += 1;
-          await appendEvent({
+          await recordEvent({
             id: randomUUID(),
             correlation_id: correlationId,
             event_type: eventType,

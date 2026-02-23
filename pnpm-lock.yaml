@@ -63,6 +63,9 @@ importers:
       '@ai-security-gateway/eventlog':
         specifier: workspace:*
         version: link:../../packages/eventlog
+      '@ai-security-gateway/exporters':
+        specifier: workspace:^
+        version: link:../../packages/exporters
       '@ai-security-gateway/policy':
         specifier: workspace:*
         version: link:../../packages/policy

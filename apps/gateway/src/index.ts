@@ -3,6 +3,7 @@ import { runMigrations } from '@ai-security-gateway/eventlog';
 import { globalRegistry } from '@ai-security-gateway/connectors';
 import { MockConnector } from '@ai-security-gateway/connectors';
 import { ServiceNowConnector } from '@ai-security-gateway/connectors';
+import { SplunkHECExporter, globalEventExportDispatcher } from '@ai-security-gateway/exporters';
 
 const port = parseInt(process.env.PORT ?? '3001', 10);
 const logLevel = (process.env.LOG_LEVEL ?? 'info') as string;
@@ -65,10 +66,35 @@ function registerServiceNowConnectorIfConfigured() {
   );
 }
 
+function registerSplunkExporterIfConfigured() {
+  if (process.env.SPLUNK_HEC_ENABLED !== 'true') return;
+
+  const endpoint = process.env.SPLUNK_HEC_URL;
+  const token = process.env.SPLUNK_HEC_TOKEN;
+  if (!endpoint || !token) {
+    throw new Error('SPLUNK_HEC_ENABLED=true requires SPLUNK_HEC_URL and SPLUNK_HEC_TOKEN');
+  }
+
+  globalEventExportDispatcher.register(
+    new SplunkHECExporter({
+      endpoint,
+      token,
+      index: process.env.SPLUNK_HEC_INDEX,
+      source: process.env.SPLUNK_HEC_SOURCE ?? 'ai-security-gateway',
+      sourcetype: process.env.SPLUNK_HEC_SOURCETYPE ?? 'agent_security_event',
+      host: process.env.SPLUNK_HEC_HOST,
+      maxRetries: parseInt(process.env.SPLUNK_HEC_MAX_RETRIES ?? '3', 10),
+      retryBaseDelayMs: parseInt(process.env.SPLUNK_HEC_RETRY_BASE_DELAY_MS ?? '300', 10),
+      timeoutMs: parseInt(process.env.SPLUNK_HEC_TIMEOUT_MS ?? '5000', 10),
+    }),
+  );
+}
+
 async function main() {
   // Register connectors (add real connectors here as they are built)
   globalRegistry.register(new MockConnector());
   registerServiceNowConnectorIfConfigured();
+  registerSplunkExporterIfConfigured();
 
   // Run DB migrations before accepting traffic
   await runMigrations();
