@@ -5,6 +5,9 @@ import { MockConnector } from '@ai-security-gateway/connectors';
 import { ServiceNowConnector } from '@ai-security-gateway/connectors';
 import { SplunkHECExporter, globalEventExportDispatcher } from '@ai-security-gateway/exporters';
 import { configurePolicyEngineFromEnv } from './services/policy';
+import { loadEnvFile } from './env';
+
+loadEnvFile('.env');
 
 const port = parseInt(process.env.PORT ?? '3001', 10);
 const logLevel = (process.env.LOG_LEVEL ?? 'info') as string;
