@@ -56,15 +56,14 @@ export const toolArgSchemas: Record<string, JsonSchema> = {
 /**
  * Validate `tool_args` for a named tool using its registered JSON Schema.
  *
- * If no schema is registered for `toolName` the call is a no-op and `null`
- * (valid) is returned, so unknown tools pass through without error.
+ * If no schema is registered for `toolName` validation fails closed.
  */
 export function validateToolArgs(
   toolName: string,
   args: Record<string, unknown>,
 ): string[] | null {
   const schema = toolArgSchemas[toolName];
-  if (!schema) return null;
+  if (!schema) return [`/ unknown tool '${toolName}'`];
 
   const schemaId = typeof schema.$id === 'string' ? (schema.$id as string) : undefined;
   return validate(schema, args, schemaId);

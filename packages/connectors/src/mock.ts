@@ -11,6 +11,7 @@ import type { ToolConnector } from './registry';
 export class MockConnector implements ToolConnector {
   readonly name = 'web_search';
   readonly description = 'Mock web search connector (returns static results for dev/test)';
+  readonly risk_tier = 'read' as const;
 
   readonly argsSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',

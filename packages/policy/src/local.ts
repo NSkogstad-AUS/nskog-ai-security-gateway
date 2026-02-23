@@ -12,7 +12,9 @@ export class LocalPolicyEngine implements PolicyEngine {
     return {
       correlation_id: intent.correlation_id,
       result: 'allow',
+      risk_tier: intent.risk_tier,
       reason: 'LocalPolicyEngine stub – all requests allowed',
+      reason_codes: ['policy.allow.local_default'],
       evaluated_at: new Date().toISOString(),
     };
   }
