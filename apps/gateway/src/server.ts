@@ -1,6 +1,7 @@
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { interceptRoute } from './routes/intercept';
 import { approvalsRoute } from './routes/approvals';
+import { eventsRoute } from './routes/events';
 
 export async function buildServer(opts?: FastifyServerOptions) {
   const app = Fastify(opts ?? { logger: true });
@@ -11,6 +12,7 @@ export async function buildServer(opts?: FastifyServerOptions) {
   // v1 API routes
   await app.register(interceptRoute, { prefix: '/v1' });
   await app.register(approvalsRoute, { prefix: '/v1' });
+  await app.register(eventsRoute, { prefix: '/v1' });
 
   return app;
 }

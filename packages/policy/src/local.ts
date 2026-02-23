@@ -10,6 +10,19 @@ import type { PolicyEngine } from './engine';
 export class LocalPolicyEngine implements PolicyEngine {
   readonly name = 'local';
 
+  async evaluateWithTrace(
+    intent: ToolCallIntent,
+  ): Promise<{ decision: PolicyDecision; trace?: Record<string, unknown> }> {
+    const decision = await this.decide(intent);
+    return {
+      decision,
+      trace: {
+        rule: intent.risk_tier === 'admin' ? 'local.admin_requires_approval' : 'local.allow_default',
+        why: decision.reason ?? 'Local fallback policy',
+      },
+    };
+  }
+
   async decide(intent: ToolCallIntent): Promise<PolicyDecision> {
     if (intent.risk_tier === 'admin') {
       return {

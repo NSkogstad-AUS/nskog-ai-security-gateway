@@ -48,7 +48,9 @@ export class OPAPolicyEngine implements PolicyEngine {
     return `${this.baseUrl}/v1/data/${this.policyPath}`;
   }
 
-  async decide(intent: ToolCallIntent): Promise<PolicyDecision> {
+  async evaluateWithTrace(
+    intent: ToolCallIntent,
+  ): Promise<{ decision: PolicyDecision; trace?: Record<string, unknown> }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -65,31 +67,64 @@ export class OPAPolicyEngine implements PolicyEngine {
       };
       const result = body.result ?? {};
       if (!res.ok) {
-        return denyDecision(intent, `OPA request failed (${res.status})`, ['policy.deny']);
+        return {
+          decision: denyDecision(intent, `OPA request failed (${res.status})`, ['policy.deny']),
+          trace: {
+            rule: 'opa.transport_error',
+            why: `OPA HTTP ${res.status}`,
+          },
+        };
       }
 
       const mappedResult = mapResult(result);
       return {
-        correlation_id: intent.correlation_id,
-        result: mappedResult.result,
-        risk_tier: intent.risk_tier,
-        reason: mappedResult.reason,
-        reason_codes: mappedResult.reason_codes,
-        ...(mappedResult.approval_required !== undefined
-          ? { approval_required: mappedResult.approval_required }
-          : {}),
-        ...(mappedResult.redacted_args ? { redacted_args: mappedResult.redacted_args } : {}),
-        evaluated_at: new Date().toISOString(),
+        decision: {
+          correlation_id: intent.correlation_id,
+          result: mappedResult.result,
+          risk_tier: intent.risk_tier,
+          reason: mappedResult.reason,
+          reason_codes: mappedResult.reason_codes,
+          ...(mappedResult.approval_required !== undefined
+            ? { approval_required: mappedResult.approval_required }
+            : {}),
+          ...(mappedResult.redacted_args ? { redacted_args: mappedResult.redacted_args } : {}),
+          evaluated_at: new Date().toISOString(),
+        },
+        trace: {
+          rule:
+            typeof result.rule_id === 'string'
+              ? result.rule_id
+              : typeof result.rule === 'string'
+                ? result.rule
+                : undefined,
+          why:
+            typeof result.reason === 'string'
+              ? result.reason
+              : mappedResult.reason ?? 'OPA decision result',
+          matched_rules: Array.isArray(result.matched_rules) ? result.matched_rules : undefined,
+          raw: result,
+        },
       };
     } catch (err) {
-      return denyDecision(
-        intent,
-        `OPA evaluation failed: ${err instanceof Error ? err.message : 'unknown error'}`,
-        ['policy.deny'],
-      );
+      return {
+        decision: denyDecision(
+          intent,
+          `OPA evaluation failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+          ['policy.deny'],
+        ),
+        trace: {
+          rule: 'opa.exception',
+          why: err instanceof Error ? err.message : 'unknown error',
+        },
+      };
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  async decide(intent: ToolCallIntent): Promise<PolicyDecision> {
+    const evaluated = await this.evaluateWithTrace(intent);
+    return evaluated.decision;
   }
 }
 

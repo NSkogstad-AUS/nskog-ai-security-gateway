@@ -43,9 +43,20 @@ export async function evaluatePolicy(intent: ToolCallIntent): Promise<{
   decision: PolicyDecision;
   engine: string;
   input_hash: string;
+  trace?: Record<string, unknown>;
 }> {
   const inputHash = hashPolicyInput(intent);
   const engine = getPolicyEngine();
+  if (typeof engine.evaluateWithTrace === 'function') {
+    const evaluated = await engine.evaluateWithTrace(intent);
+    return {
+      decision: evaluated.decision,
+      engine: engine.name,
+      input_hash: inputHash,
+      trace: evaluated.trace,
+    };
+  }
+
   const decision = await engine.decide(intent);
   return {
     decision,

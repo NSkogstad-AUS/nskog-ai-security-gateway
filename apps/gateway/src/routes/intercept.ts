@@ -182,6 +182,7 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
         await emitTimelineEvent('PolicyEvaluated', 'policy.evaluated', {
           policy_engine: policyEval.engine,
           policy_input_hash: policyEval.input_hash,
+          policy_trace: policyEval.trace,
           decision_output: decision,
           decision,
         });

@@ -18,4 +18,11 @@ export interface PolicyEngine {
    * - Must always populate `correlation_id` and `evaluated_at` in the response.
    */
   decide(intent: ToolCallIntent): Promise<PolicyDecision>;
+  /**
+   * Optional richer evaluation output including engine-specific trace details.
+   * Used for audit/console visibility; enforcement still depends on `decision`.
+   */
+  evaluateWithTrace?(
+    intent: ToolCallIntent,
+  ): Promise<{ decision: PolicyDecision; trace?: Record<string, unknown> }>;
 }
