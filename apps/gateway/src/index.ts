@@ -3,6 +3,7 @@ import { runMigrations } from '@ai-security-gateway/eventlog';
 import { globalRegistry } from '@ai-security-gateway/connectors';
 import { MockConnector } from '@ai-security-gateway/connectors';
 import { ServiceNowConnector } from '@ai-security-gateway/connectors';
+import { createGitHubConnectors } from '@ai-security-gateway/connectors';
 import { SplunkHECExporter, globalEventExportDispatcher } from '@ai-security-gateway/exporters';
 import { configurePolicyEngineFromEnv } from './services/policy';
 import { loadEnvFile } from './env';
@@ -70,6 +71,27 @@ function registerServiceNowConnectorIfConfigured() {
   );
 }
 
+function registerGitHubConnectorsIfConfigured() {
+  if (process.env.GITHUB_ENABLED !== 'true') return;
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error('GITHUB_ENABLED=true requires GITHUB_TOKEN');
+  }
+
+  const connectors = createGitHubConnectors({
+    token,
+    apiBaseUrl: process.env.GITHUB_API_BASE_URL,
+    timeoutMs: process.env.GITHUB_TIMEOUT_MS
+      ? parseInt(process.env.GITHUB_TIMEOUT_MS, 10)
+      : undefined,
+  });
+
+  for (const connector of connectors) {
+    globalRegistry.register(connector);
+  }
+}
+
 function registerSplunkExporterIfConfigured() {
   if (process.env.SPLUNK_HEC_ENABLED !== 'true') return;
 
@@ -98,6 +120,7 @@ async function main() {
   // Register connectors (add real connectors here as they are built)
   globalRegistry.register(new MockConnector());
   registerServiceNowConnectorIfConfigured();
+  registerGitHubConnectorsIfConfigured();
   registerSplunkExporterIfConfigured();
   configurePolicyEngineFromEnv();
 
