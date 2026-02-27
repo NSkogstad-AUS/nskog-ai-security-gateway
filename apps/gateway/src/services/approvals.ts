@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getPool } from '@ai-security-gateway/eventlog';
 import type { ApprovalStatus, ToolRiskTier } from '@ai-security-gateway/shared';
+import { globalRegistry } from '@ai-security-gateway/connectors';
 import { recordEvent } from './event-pipeline';
 
 type ApprovalEventType = 'ApprovalRequested' | 'ApprovalApproved' | 'ApprovalDenied';
@@ -152,9 +153,16 @@ interface ApproveOrDenyInput {
   note?: string;
 }
 
+export interface TransitionApprovalResult {
+  approval: ApprovalRecord;
+  transitioned: boolean;
+  tool_result?: unknown;
+  execution_error?: string;
+}
+
 export async function transitionApproval(
   input: ApproveOrDenyInput,
-): Promise<{ approval: ApprovalRecord; transitioned: boolean } | null> {
+): Promise<TransitionApprovalResult | null> {
   const pool = getPool();
   const { rows } = await pool.query(
     `
@@ -219,31 +227,64 @@ export async function transitionApproval(
     },
   });
 
-  if (input.action === 'approve') {
-    await recordEvent({
-      id: randomUUID(),
-      correlation_id: correlationId,
-      event_type: 'ToolExecuted',
-      ts: new Date().toISOString(),
-      payload: {
-        approval_id: input.approval_id,
-        tool_name: requestedPayload.tool_name,
-        execution_mode: 'deferred',
-      },
-    });
+  const approval: ApprovalRecord = {
+    id: input.approval_id,
+    correlation_id: correlationId,
+    status: nextStatus,
+    agent_id: String(requestedPayload.agent_id ?? ''),
+    tool_name: String(requestedPayload.tool_name ?? ''),
+    risk_tier: (requestedPayload.risk_tier as ToolRiskTier) ?? 'admin',
+    requested_at: new Date(latest.ts as string).toISOString(),
+    decided_at: decisionTs,
+  };
+
+  if (input.action !== 'approve') {
+    return { approval, transitioned: true };
   }
 
-  return {
-    approval: {
-      id: input.approval_id,
-      correlation_id: correlationId,
-      status: nextStatus,
-      agent_id: String(requestedPayload.agent_id ?? ''),
-      tool_name: String(requestedPayload.tool_name ?? ''),
-      risk_tier: (requestedPayload.risk_tier as ToolRiskTier) ?? 'admin',
-      requested_at: new Date(latest.ts as string).toISOString(),
-      decided_at: decisionTs,
+  // Execute the tool with the args captured at approval-request time.
+  const toolName = approval.tool_name;
+  const toolArgs = (requestedPayload.tool_args ?? {}) as Record<string, unknown>;
+  const connector = globalRegistry.get(toolName);
+
+  let toolResult: unknown;
+  let executionError: string | undefined;
+
+  if (!connector) {
+    executionError = `connector '${toolName}' is no longer registered`;
+  } else {
+    try {
+      toolResult = await connector.execute(toolArgs);
+    } catch (err) {
+      executionError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  await recordEvent({
+    id: randomUUID(),
+    correlation_id: correlationId,
+    event_type: 'ToolExecuted',
+    ts: new Date().toISOString(),
+    payload: {
+      approval_id: input.approval_id,
+      tool_name: toolName,
+      status: executionError ? 'error' : 'success',
+      execution_mode: 'deferred',
+      ...(executionError ? { error: executionError } : {}),
     },
-    transitioned: true,
-  };
+  });
+
+  await recordEvent({
+    id: randomUUID(),
+    correlation_id: correlationId,
+    event_type: 'InterceptCompleted',
+    ts: new Date().toISOString(),
+    payload: {
+      approval_id: input.approval_id,
+      outcome: executionError ? 'error' : 'allow',
+      execution_mode: 'deferred',
+    },
+  });
+
+  return { approval, transitioned: true, tool_result: toolResult, execution_error: executionError };
 }

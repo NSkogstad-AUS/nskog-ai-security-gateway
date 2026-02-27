@@ -101,7 +101,18 @@ export const approvalsRoute: FastifyPluginAsync = async (app) => {
             approval: result.approval,
           });
         }
-        return reply.send(result.approval);
+        if (result.execution_error) {
+          return reply.status(502).send({
+            error: 'connector_error',
+            message: result.execution_error,
+            approval: result.approval,
+          });
+        }
+        return reply.send({
+          ...result.approval,
+          tool_result: result.tool_result,
+          executed_at: new Date().toISOString(),
+        });
       },
     },
   );
