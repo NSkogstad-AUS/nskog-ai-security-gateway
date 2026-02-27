@@ -6,6 +6,7 @@ import { validate } from '@ai-security-gateway/validation';
 import { createApprovalRequest } from '../services/approvals';
 import { recordEvent } from '../services/event-pipeline';
 import { evaluatePolicy } from '../services/policy';
+import { resolveAgentId } from '../services/agent-auth';
 
 export const interceptRoute: FastifyPluginAsync = async (app) => {
   /**
@@ -20,13 +21,18 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
    *   403 – denied by policy or failed validation
    *   502 – connector returned an error during execution
    */
-  app.post<{ Body: Omit<ToolCallIntent, 'correlation_id' | 'risk_tier'> & { correlation_id?: string } }>(
+  app.post<{
+    Body: Omit<ToolCallIntent, 'correlation_id' | 'risk_tier'> & {
+      correlation_id?: string;
+      agent_id?: string; // optional when AGENT_AUTH_ENABLED=true; derived from API key
+    };
+  }>(
     '/intercept',
     {
       schema: {
         body: {
           type: 'object',
-          required: ['agent_id', 'tool_name', 'tool_args'],
+          required: ['tool_name', 'tool_args'],
           properties: {
             correlation_id: { type: 'string' },
             agent_id: { type: 'string' },
@@ -94,6 +100,24 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
       },
       handler: async (request, reply) => {
         const body = request.body;
+
+        // Resolve agent identity. When AGENT_AUTH_ENABLED=true the X-Agent-Key header
+        // is required and its bound agent_id overrides whatever the caller sends in the body.
+        let agentId: string;
+        if (process.env.AGENT_AUTH_ENABLED === 'true') {
+          const rawKey = request.headers['x-agent-key'];
+          if (!rawKey || typeof rawKey !== 'string') {
+            return reply.status(401).send({ error: 'X-Agent-Key header is required' });
+          }
+          const verified = await resolveAgentId(rawKey);
+          if (!verified) {
+            return reply.status(401).send({ error: 'invalid or revoked API key' });
+          }
+          agentId = verified;
+        } else {
+          agentId = body.agent_id ?? 'unknown';
+        }
+
         const correlationId = body.correlation_id ?? randomUUID();
         const connector = globalRegistry.get(body.tool_name);
         const riskTier = connector?.risk_tier ?? 'admin';
@@ -122,7 +146,7 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
 
         const intent: ToolCallIntent = {
           correlation_id: correlationId,
-          agent_id: body.agent_id,
+          agent_id: agentId,
           tool_name: body.tool_name,
           risk_tier: riskTier,
           tool_args: body.tool_args,

@@ -2,6 +2,7 @@ import Fastify, { type FastifyServerOptions } from 'fastify';
 import { interceptRoute } from './routes/intercept';
 import { approvalsRoute } from './routes/approvals';
 import { eventsRoute } from './routes/events';
+import { agentKeysRoute } from './routes/agent-keys';
 
 export async function buildServer(opts?: FastifyServerOptions) {
   const app = Fastify(opts ?? { logger: true });
@@ -13,6 +14,7 @@ export async function buildServer(opts?: FastifyServerOptions) {
   await app.register(interceptRoute, { prefix: '/v1' });
   await app.register(approvalsRoute, { prefix: '/v1' });
   await app.register(eventsRoute, { prefix: '/v1' });
+  await app.register(agentKeysRoute, { prefix: '/v1' });
 
   return app;
 }

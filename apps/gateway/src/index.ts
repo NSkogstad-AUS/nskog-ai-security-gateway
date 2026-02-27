@@ -6,6 +6,7 @@ import { ServiceNowConnector } from '@ai-security-gateway/connectors';
 import { createGitHubConnectors } from '@ai-security-gateway/connectors';
 import { SplunkHECExporter, globalEventExportDispatcher } from '@ai-security-gateway/exporters';
 import { configurePolicyEngineFromEnv } from './services/policy';
+import { runGatewayMigrations } from './db-migrations';
 import { loadEnvFile } from './env';
 
 loadEnvFile('.env');
@@ -126,6 +127,7 @@ async function main() {
 
   // Run DB migrations before accepting traffic
   await runMigrations();
+  await runGatewayMigrations();
 
   const app = await buildServer({ logger: { level: logLevel } });
 
