@@ -12,8 +12,13 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
    * POST /v1/intercept
    *
    * Accepts a ToolCallIntent, validates tool_args, runs policy evaluation,
-   * appends two events to the log, and returns the PolicyDecision.
-   * Tool execution is intentionally out of scope for this scaffold.
+   * executes the tool via its connector, and returns the result.
+   *
+   * Response codes:
+   *   200 – tool executed successfully (allow or redact path)
+   *   202 – approval required; tool execution is paused pending human review
+   *   403 – denied by policy or failed validation
+   *   502 – connector returned an error during execution
    */
   app.post<{ Body: Omit<ToolCallIntent, 'correlation_id' | 'risk_tier'> & { correlation_id?: string } }>(
     '/intercept',
@@ -35,20 +40,24 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
             type: 'object',
             properties: {
               correlation_id: { type: 'string' },
-              result: { type: 'string', enum: ['allow', 'deny', 'redact'] },
+              result: { type: 'string', enum: ['allow', 'redact'] },
               risk_tier: { type: 'string', enum: ['read', 'write', 'admin'] },
               reason: { type: 'string' },
               reason_codes: { type: 'array', items: { type: 'string' } },
               approval_required: { type: 'boolean' },
-              approval: {
-                type: 'object',
-                properties: {
-                  id: { type: 'string' },
-                  status: { type: 'string', enum: ['pending', 'approved', 'denied'] },
-                },
-              },
               redacted_args: { type: 'object' },
               evaluated_at: { type: 'string' },
+              // Connector result – schema is intentionally open; shape varies by tool.
+              tool_result: {},
+              executed_at: { type: 'string' },
+            },
+          },
+          502: {
+            type: 'object',
+            properties: {
+              correlation_id: { type: 'string' },
+              error: { type: 'string' },
+              message: { type: 'string' },
             },
           },
           202: {
@@ -232,13 +241,48 @@ export const interceptRoute: FastifyPluginAsync = async (app) => {
           return reply.status(202).send(pendingDecision);
         }
 
-        // 7) Close the loop with a terminal event so the timeline is complete.
+        // 7) Execute the tool. Redact path uses sanitised args from the policy engine.
+        const argsToExecute =
+          decision.result === 'redact' && decision.redacted_args
+            ? decision.redacted_args
+            : intent.tool_args;
+
+        let toolResult: unknown;
+        try {
+          toolResult = await connector.execute(argsToExecute);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          await emitTimelineEvent('ToolExecuted', 'tool.error', {
+            tool_name: intent.tool_name,
+            status: 'error',
+            error: message,
+          });
+          await emitTimelineEvent('InterceptCompleted', 'intercept.completed', {
+            outcome: 'error',
+          });
+          return reply.status(502).send({
+            correlation_id: correlationId,
+            error: 'connector_error',
+            message,
+          });
+        }
+
+        await emitTimelineEvent('ToolExecuted', 'tool.executed', {
+          tool_name: intent.tool_name,
+          status: 'success',
+          args_redacted: decision.result === 'redact',
+        });
+
+        // 8) Close the loop and return the tool result alongside the decision.
         await emitTimelineEvent('InterceptCompleted', 'intercept.completed', {
           outcome: decision.result,
         });
 
-        // 8) Return decision (allow or redact); tool execution is still out of scope.
-        return reply.send(decision);
+        return reply.send({
+          ...decision,
+          tool_result: toolResult,
+          executed_at: new Date().toISOString(),
+        });
       },
     },
   );
