@@ -69,6 +69,47 @@ export async function listEvents(options?: {
   return rows.map(toEvent);
 }
 
+export async function listEventsAfterCursor(options: {
+  after_ts: string;
+  after_id: string;
+  correlation_id?: string;
+  event_types?: string[];
+  limit?: number;
+}): Promise<AgentSecurityEvent[]> {
+  const pool = getPool();
+  const limit = Math.max(1, Math.min(options.limit ?? 200, 500));
+
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  // Cursor clause first so we can always tail in chronological order.
+  params.push(options.after_ts);
+  params.push(options.after_id);
+  where.push(`(ts, id) > ($1::timestamptz, $2::uuid)`);
+
+  if (options.correlation_id) {
+    params.push(options.correlation_id);
+    where.push(`correlation_id = $${params.length}`);
+  }
+
+  if (options.event_types && options.event_types.length > 0) {
+    params.push(options.event_types);
+    where.push(`event_type = ANY($${params.length}::text[])`);
+  }
+
+  params.push(limit);
+  const query = `
+    SELECT id, correlation_id, event_type, ts, payload
+    FROM events
+    WHERE ${where.join(' AND ')}
+    ORDER BY ts ASC, id ASC
+    LIMIT $${params.length}
+  `;
+
+  const { rows } = await pool.query<DbEventRow>(query, params);
+  return rows.map(toEvent);
+}
+
 export async function getTimeline(correlationId: string): Promise<AgentSecurityEvent[]> {
   const pool = getPool();
   const { rows } = await pool.query<DbEventRow>(

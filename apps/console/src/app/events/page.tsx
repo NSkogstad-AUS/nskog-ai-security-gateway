@@ -1,3 +1,5 @@
+import { LiveRefresh } from './LiveRefresh';
+
 type EventItem = {
   id: string;
   correlation_id: string;
@@ -33,7 +35,8 @@ type PolicyTraceResponse = {
   decision_output?: Record<string, unknown>;
 };
 
-const gatewayBaseUrl = process.env.GATEWAY_URL ?? 'http://localhost:3001';
+const gatewayBaseUrl =
+  process.env.GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://localhost:3001';
 
 async function fetchJson<T>(path: string): Promise<T | null> {
   try {
@@ -72,7 +75,10 @@ export default async function EventsPage({
 
   return (
     <div>
-      <h1 style={{ marginTop: 0 }}>Security Operations Console</h1>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+        <h1 style={{ marginTop: 0, marginBottom: 0 }}>Security Operations Console</h1>
+        <LiveRefresh />
+      </div>
       <p style={{ color: '#555' }}>
         Queue and trace view for denied requests, pending approvals, and per-correlation decisions.
       </p>

@@ -79,6 +79,7 @@ Intercept tool calls, validate args, evaluate policy, emit timeline events, opti
 
 - `GET /v1/queue` – read-only view of denied tool calls + pending approvals.
 - `GET /v1/events?limit=...` – recent events, optional `correlation_id`/`event_type` filters.
+- `GET /v1/events/stream` – Server-Sent Events (SSE) stream of new events (for live console refresh).
 - `GET /v1/events/{correlation_id}/timeline` – entire chronological chain for a correlation.
 - `GET /v1/events/{correlation_id}/policy-trace` – latest policy decision, engine, input hash, and trace details.
 
@@ -92,6 +93,7 @@ Intercept tool calls, validate args, evaluate policy, emit timeline events, opti
 - **Console**: 
   - `/` dashboard calls `GET /v1/overview` to power KPI cards, connector table, hourly histogram, and event-type list.
   - `/events` uses `/v1/queue`, `/timeline`, and `/policy-trace` to show denied calls, approvals, timelines, and policy trace JSON.
+  - `/events` also subscribes to `/v1/events/stream` to auto-refresh when approvals/denies happen (set `NEXT_PUBLIC_GATEWAY_URL` if the gateway isn't on `http://localhost:3001`).
 
 ## Console snapshot (/events)
 
