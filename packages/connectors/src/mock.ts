@@ -1,3 +1,4 @@
+import { webSearchArgsSchema } from '@ai-security-gateway/shared';
 import type { ToolConnector } from './registry';
 
 /**
@@ -5,25 +6,14 @@ import type { ToolConnector } from './registry';
  *
  * - Tool name: `web_search`
  * - Returns a static canned response regardless of input.
- * - argsSchema is the canonical source for the `web_search` tool schema;
- *   the validation package's toolArgSchemas map must stay in sync with this.
+ * - Schema comes from the shared package so validation and connectors stay aligned.
  */
 export class MockConnector implements ToolConnector {
   readonly name = 'web_search';
   readonly description = 'Mock web search connector (returns static results for dev/test)';
   readonly risk_tier = 'read' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/web_search',
-    type: 'object',
-    required: ['query'],
-    properties: {
-      query: { type: 'string', minLength: 1 },
-      max_results: { type: 'integer', minimum: 1, maximum: 50 },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = webSearchArgsSchema;
 
   async execute(args: Record<string, unknown>): Promise<unknown> {
     return {

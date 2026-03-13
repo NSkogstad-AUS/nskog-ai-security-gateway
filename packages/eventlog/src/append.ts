@@ -12,12 +12,6 @@ export async function appendEvent(event: AgentSecurityEvent): Promise<void> {
   await pool.query(
     `INSERT INTO events (id, correlation_id, event_type, ts, payload)
      VALUES ($1, $2, $3, $4, $5)`,
-    [
-      event.id,
-      event.correlation_id,
-      event.event_type,
-      event.ts,
-      JSON.stringify(event.payload),
-    ],
+    [event.id, event.correlation_id, event.event_type, event.ts, JSON.stringify(event.payload)],
   );
 }

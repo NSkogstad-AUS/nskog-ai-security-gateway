@@ -12,7 +12,7 @@ export function getPool(): Pool {
     if (!connectionString) {
       throw new Error(
         'DATABASE_URL environment variable is not set. ' +
-          'Copy apps/gateway/.env.example → .env and fill in the value.',
+          'Run `pnpm env:setup` or set DATABASE_URL explicitly.',
       );
     }
     _pool = new Pool({ connectionString });

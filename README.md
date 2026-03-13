@@ -3,6 +3,7 @@
 An AI security gate that watches every tool request made by agents, validates the arguments before execution, enforces configurable policy (local or OPA), records every phase in an append-only event log, exports those events to systems like Splunk, and feeds a console/dashboard so you can trace a correlation, review approvals, and understand which rule fired and why. The UI surfaces KPIs, connector inventory, event trends, and a queue of denied calls plus pending approvals, making the guardrail transparent instead of a black box.
 
 ## Repo layout
+
 ```
 apps/
   gateway/        Fastify v4 API – POST /v1/intercept + approvals/events routes
@@ -19,30 +20,23 @@ packages/
 
 ## Prerequisites
 
-| Tool | Minimum |
-|------|---------|
-| Node.js | 20 |
-| pnpm | 9 (`npm i -g pnpm`) |
-| Docker | Recent release (used for Postgres via docker compose) |
+| Tool    | Minimum                                               |
+| ------- | ----------------------------------------------------- |
+| Node.js | 20                                                    |
+| pnpm    | 9 (`npm i -g pnpm`)                                   |
+| Docker  | Recent release (used for Postgres via docker compose) |
 
 ## Getting started
 
 ```bash
-# 1. Install deps for every workspace
+# Install deps
 pnpm install
 
-# 2. Bring up Postgres
-docker compose up -d
+# Create apps/gateway/.env if it's missing
+pnpm env:setup
 
-# 3. Copy sample env files
-cp apps/gateway/.env.example       apps/gateway/.env
-cp packages/eventlog/.env.example  packages/eventlog/.env
-
-# 4. Build all packages (required before the first dev run)
-pnpm build
-
-# 5. Start watch/dev mode
-pnpm dev
+# Start Postgres + build + run the gateway
+pnpm manual
 ```
 
 - Gateway: http://localhost:3001
@@ -65,6 +59,9 @@ pnpm db:up
 
 # Stop the local Docker services
 pnpm db:down
+
+# Remove generated build/cache artifacts
+pnpm clean
 
 # Start the gateway only for manual API testing
 pnpm manual
@@ -97,7 +94,7 @@ Intercept tool calls, validate args, evaluate policy, emit timeline events, opti
 }
 ```
 
-- Validation errors return `400` with details.
+- Validation errors return `403` with details.
 - Policy denies return `403` with `reason_codes` and timeline events.
 - `approval_required` decisions return `202` plus `approval.id`; approve/deny happens via the approvals API.
 
@@ -122,7 +119,7 @@ Intercept tool calls, validate args, evaluate policy, emit timeline events, opti
 - **Policy engines** live in `packages/policy`: `LocalPolicyEngine` (always allows but flags admin-risk tools for approval), `OPAPolicyEngine` (calls OPA REST API, maps `allow`/`deny`/`redact`, records traces and reason codes). The gateway selects the engine via `POLICY_BACKEND` and logs `policy_input_hash` + trace for auditing.
 - **Approvals** are modeled as immutable events. Creating/transitioning approvals happens through `apps/gateway/src/routes/approvals.ts`, but every change writes to the event log so the console and analytics can derive approval queue state.
 - **Exporters**: `packages/exporters` hosts an exporter dispatcher; Splunk HEC exporter sends each event with retries, idempotency key (`correlation_id:event_id`), and optional index/source/sourcetype/host metadata configured in `.env`.
-- **Console**: 
+- **Console**:
   - `/` dashboard calls `GET /v1/overview` to power KPI cards, connector table, hourly histogram, and event-type list.
   - `/events` uses `/v1/queue`, `/timeline`, and `/policy-trace` to show denied calls, approvals, timelines, and policy trace JSON.
   - `/events` also subscribes to `/v1/events/stream` to auto-refresh when approvals/denies happen (set `NEXT_PUBLIC_GATEWAY_URL` if the gateway isn't on `http://localhost:3001`).
@@ -144,49 +141,50 @@ Minimal but useful operations console:
 
 ## Environment variables (`apps/gateway/.env`)
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `PORT` | `3001` | HTTP port for gateway |
-| `DATABASE_URL` | — | Postgres connection string |
-| `LOG_LEVEL` | `info` | Fastify log level |
-| `POLICY_BACKEND` | `local` | `local` or `opa` |
-| `OPA_BASE_URL` | `http://localhost:8181` | Required when backend=opa |
-| `OPA_POLICY_PATH` | `gateway/policy` | OPA data path at `/v1/data/...` |
-| `OPA_TIMEOUT_MS` | `5000` | Timeout for OPA REST call |
-| `SERVICENOW_ENABLED` | `false` | Register ServiceNow connector |
-| `SERVICENOW_AUTH_MODE` | `basic` | Or `oauth_client_credentials` |
-| `SERVICENOW_USERNAME`/`PASSWORD` | — | Required for basic auth |
-| `SERVICENOW_CLIENT_ID`/`SECRET` | — | Required for OAuth flow |
-| `SPLUNK_HEC_ENABLED` | `false` | Enable Splunk HEC exporter |
-| `SPLUNK_HEC_URL` | `https://splunk.example.com:8088/services/collector/event` | HEC endpoint |
-| `SPLUNK_HEC_TOKEN` | — | HEC ingestion token |
-| `SPLUNK_HEC_INDEX` | — | Optional Splunk index |
-| `SPLUNK_HEC_SOURCE` | `ai-security-gateway` | Optional source override |
-| `SPLUNK_HEC_SOURCETYPE` | `agent_security_event` | Optional sourcetype override |
-| `SPLUNK_HEC_HOST` | — | Optional host metadata |
-| `SPLUNK_HEC_MAX_RETRIES` | `3` | Retry attempts |
-| `SPLUNK_HEC_RETRY_BASE_DELAY_MS` | `300` | Backoff base (ms) |
-| `SPLUNK_HEC_TIMEOUT_MS` | `5000` | HTTP request timeout |
+| Variable                         | Default                                                    | Purpose                         |
+| -------------------------------- | ---------------------------------------------------------- | ------------------------------- |
+| `PORT`                           | `3001`                                                     | HTTP port for gateway           |
+| `DATABASE_URL`                   | —                                                          | Postgres connection string      |
+| `LOG_LEVEL`                      | `info`                                                     | Fastify log level               |
+| `POLICY_BACKEND`                 | `local`                                                    | `local` or `opa`                |
+| `OPA_BASE_URL`                   | `http://localhost:8181`                                    | Required when backend=opa       |
+| `OPA_POLICY_PATH`                | `gateway/policy`                                           | OPA data path at `/v1/data/...` |
+| `OPA_TIMEOUT_MS`                 | `5000`                                                     | Timeout for OPA REST call       |
+| `SERVICENOW_ENABLED`             | `false`                                                    | Register ServiceNow connector   |
+| `SERVICENOW_AUTH_MODE`           | `basic`                                                    | Or `oauth_client_credentials`   |
+| `SERVICENOW_USERNAME`/`PASSWORD` | —                                                          | Required for basic auth         |
+| `SERVICENOW_CLIENT_ID`/`SECRET`  | —                                                          | Required for OAuth flow         |
+| `SPLUNK_HEC_ENABLED`             | `false`                                                    | Enable Splunk HEC exporter      |
+| `SPLUNK_HEC_URL`                 | `https://splunk.example.com:8088/services/collector/event` | HEC endpoint                    |
+| `SPLUNK_HEC_TOKEN`               | —                                                          | HEC ingestion token             |
+| `SPLUNK_HEC_INDEX`               | —                                                          | Optional Splunk index           |
+| `SPLUNK_HEC_SOURCE`              | `ai-security-gateway`                                      | Optional source override        |
+| `SPLUNK_HEC_SOURCETYPE`          | `agent_security_event`                                     | Optional sourcetype override    |
+| `SPLUNK_HEC_HOST`                | —                                                          | Optional host metadata          |
+| `SPLUNK_HEC_MAX_RETRIES`         | `3`                                                        | Retry attempts                  |
+| `SPLUNK_HEC_RETRY_BASE_DELAY_MS` | `300`                                                      | Backoff base (ms)               |
+| `SPLUNK_HEC_TIMEOUT_MS`          | `5000`                                                     | HTTP request timeout            |
 
 ## Development commands
 
-| Command | Description |
-|---------|-------------|
-| `pnpm dev` | Start gateway + console + packages in watch mode |
-| `pnpm dev:gateway` | Start only the gateway app |
-| `pnpm dev:console` | Start only the console app |
-| `pnpm env:setup` | Create `apps/gateway/.env` from the example when missing |
-| `pnpm db:up` | Start local Postgres with Docker |
-| `pnpm db:down` | Stop local Docker services |
-| `pnpm manual` | Start Postgres, build, then run the gateway for manual API testing |
-| `pnpm manual:all` | Start Postgres, build, then run gateway + console |
-| `pnpm manual:gateway` | Build and run only the gateway, assuming Postgres is already available |
-| `pnpm manual:full` | Build and run gateway + console, assuming dependencies are already available |
-| `pnpm build` | Build all packages + apps |
-| `pnpm lint` | Run ESLint across the repo |
-| `pnpm typecheck` | TypeScript type checking |
-| `pnpm test` | Build packages/apps and run automated tests |
-| `pnpm format` | Format `.ts/.tsx/.json/.md` files |
+| Command               | Description                                                                  |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `pnpm dev`            | Start gateway + console + packages in watch mode                             |
+| `pnpm dev:gateway`    | Start only the gateway app                                                   |
+| `pnpm dev:console`    | Start only the console app                                                   |
+| `pnpm env:setup`      | Create `apps/gateway/.env` from the example when missing                     |
+| `pnpm db:up`          | Start local Postgres with Docker                                             |
+| `pnpm db:down`        | Stop local Docker services                                                   |
+| `pnpm clean`          | Remove generated build and cache artifacts                                   |
+| `pnpm manual`         | Start Postgres, build, then run the gateway for manual API testing           |
+| `pnpm manual:all`     | Start Postgres, build, then run gateway + console                            |
+| `pnpm manual:gateway` | Build and run only the gateway, assuming Postgres is already available       |
+| `pnpm manual:full`    | Build and run gateway + console, assuming dependencies are already available |
+| `pnpm build`          | Build all packages + apps                                                    |
+| `pnpm lint`           | Run ESLint across the repo                                                   |
+| `pnpm typecheck`      | TypeScript type checking                                                     |
+| `pnpm test`           | Build packages/apps and run automated tests                                  |
+| `pnpm format`         | Format `.ts/.tsx/.json/.md` files                                            |
 
 ## Automated tests
 

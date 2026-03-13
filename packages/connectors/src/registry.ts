@@ -7,8 +7,8 @@ import type { JsonSchema, ToolRiskTier } from '@ai-security-gateway/shared';
  * The validation package uses these schemas to validate incoming requests before
  * forwarding them to the policy engine.
  *
- * Note: `execute()` is defined here for completeness but is NOT called by the
- * gateway in the current scaffold. Tool execution will be added later.
+ * The gateway validates against `argsSchema`, evaluates policy, then calls
+ * `execute()` when the request is allowed.
  */
 export interface ToolConnector {
   /** Unique tool name – must match `tool_name` in ToolCallIntent */

@@ -1,3 +1,11 @@
+import {
+  gitHubAddIssueCommentArgsSchema,
+  gitHubCreateIssueArgsSchema,
+  gitHubCreatePullRequestArgsSchema,
+  gitHubGetFileArgsSchema,
+  gitHubMergePullRequestArgsSchema,
+  gitHubPushFileArgsSchema,
+} from '@ai-security-gateway/shared';
 import type { ToolConnector } from './registry';
 
 export interface GitHubConnectorOptions {
@@ -75,19 +83,7 @@ export class GitHubGetFileConnector implements ToolConnector {
   readonly description = 'Read the contents of a file from a GitHub repository';
   readonly risk_tier = 'read' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/gh_get_file',
-    type: 'object',
-    required: ['owner', 'repo', 'path'],
-    properties: {
-      owner: { type: 'string', minLength: 1, maxLength: 100 },
-      repo: { type: 'string', minLength: 1, maxLength: 100 },
-      path: { type: 'string', minLength: 1, maxLength: 1024 },
-      ref: { type: 'string', maxLength: 256 },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = gitHubGetFileArgsSchema;
 
   constructor(private readonly client: GitHubClient) {}
 
@@ -137,22 +133,7 @@ export class GitHubCreateIssueConnector implements ToolConnector {
   readonly description = 'Create a GitHub issue in a repository';
   readonly risk_tier = 'write' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/gh_create_issue',
-    type: 'object',
-    required: ['owner', 'repo', 'title'],
-    properties: {
-      owner: { type: 'string', minLength: 1, maxLength: 100 },
-      repo: { type: 'string', minLength: 1, maxLength: 100 },
-      title: { type: 'string', minLength: 1, maxLength: 256 },
-      body: { type: 'string', maxLength: 65536 },
-      labels: { type: 'array', items: { type: 'string', maxLength: 50 }, maxItems: 20 },
-      assignees: { type: 'array', items: { type: 'string', maxLength: 100 }, maxItems: 10 },
-      milestone: { type: 'integer', minimum: 1 },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = gitHubCreateIssueArgsSchema;
 
   constructor(private readonly client: GitHubClient) {}
 
@@ -187,19 +168,7 @@ export class GitHubAddIssueCommentConnector implements ToolConnector {
   readonly description = 'Add a comment to a GitHub issue or pull request';
   readonly risk_tier = 'write' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/gh_add_issue_comment',
-    type: 'object',
-    required: ['owner', 'repo', 'issue_number', 'body'],
-    properties: {
-      owner: { type: 'string', minLength: 1, maxLength: 100 },
-      repo: { type: 'string', minLength: 1, maxLength: 100 },
-      issue_number: { type: 'integer', minimum: 1 },
-      body: { type: 'string', minLength: 1, maxLength: 65536 },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = gitHubAddIssueCommentArgsSchema;
 
   constructor(private readonly client: GitHubClient) {}
 
@@ -235,22 +204,7 @@ export class GitHubPushFileConnector implements ToolConnector {
   readonly description = 'Create or update a file in a GitHub repository via a commit';
   readonly risk_tier = 'write' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/gh_push_file',
-    type: 'object',
-    required: ['owner', 'repo', 'path', 'content', 'message'],
-    properties: {
-      owner: { type: 'string', minLength: 1, maxLength: 100 },
-      repo: { type: 'string', minLength: 1, maxLength: 100 },
-      path: { type: 'string', minLength: 1, maxLength: 1024 },
-      content: { type: 'string', maxLength: 1_048_576 },
-      message: { type: 'string', minLength: 1, maxLength: 512 },
-      branch: { type: 'string', maxLength: 256 },
-      sha: { type: 'string', maxLength: 64 },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = gitHubPushFileArgsSchema;
 
   constructor(private readonly client: GitHubClient) {}
 
@@ -300,22 +254,7 @@ export class GitHubCreatePullRequestConnector implements ToolConnector {
   readonly description = 'Open a pull request on GitHub';
   readonly risk_tier = 'write' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/gh_create_pull_request',
-    type: 'object',
-    required: ['owner', 'repo', 'title', 'head', 'base'],
-    properties: {
-      owner: { type: 'string', minLength: 1, maxLength: 100 },
-      repo: { type: 'string', minLength: 1, maxLength: 100 },
-      title: { type: 'string', minLength: 1, maxLength: 256 },
-      head: { type: 'string', minLength: 1, maxLength: 256 },
-      base: { type: 'string', minLength: 1, maxLength: 256 },
-      body: { type: 'string', maxLength: 65536 },
-      draft: { type: 'boolean' },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = gitHubCreatePullRequestArgsSchema;
 
   constructor(private readonly client: GitHubClient) {}
 
@@ -353,21 +292,7 @@ export class GitHubMergePullRequestConnector implements ToolConnector {
   readonly description = 'Merge a GitHub pull request';
   readonly risk_tier = 'admin' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/gh_merge_pull_request',
-    type: 'object',
-    required: ['owner', 'repo', 'pull_number'],
-    properties: {
-      owner: { type: 'string', minLength: 1, maxLength: 100 },
-      repo: { type: 'string', minLength: 1, maxLength: 100 },
-      pull_number: { type: 'integer', minimum: 1 },
-      commit_title: { type: 'string', maxLength: 256 },
-      commit_message: { type: 'string', maxLength: 65536 },
-      merge_method: { type: 'string', enum: ['merge', 'squash', 'rebase'] },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = gitHubMergePullRequestArgsSchema;
 
   constructor(private readonly client: GitHubClient) {}
 

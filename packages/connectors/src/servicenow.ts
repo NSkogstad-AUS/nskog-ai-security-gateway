@@ -1,3 +1,4 @@
+import { serviceNowCreateIncidentArgsSchema } from '@ai-security-gateway/shared';
 import type { ToolConnector } from './registry';
 
 type ServiceNowAuthConfig =
@@ -48,24 +49,7 @@ export class ServiceNowConnector implements ToolConnector {
   readonly description = 'Create a ServiceNow incident via Table API';
   readonly risk_tier = 'write' as const;
 
-  readonly argsSchema = {
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    $id: 'tool-args/sn_create_incident',
-    type: 'object',
-    required: ['short_description'],
-    properties: {
-      short_description: { type: 'string', minLength: 1, maxLength: 160 },
-      description: { type: 'string', maxLength: 4000 },
-      category: { type: 'string', maxLength: 40 },
-      subcategory: { type: 'string', maxLength: 40 },
-      impact: { type: 'integer', enum: [1, 2, 3] },
-      urgency: { type: 'integer', enum: [1, 2, 3] },
-      assignment_group: { type: 'string', maxLength: 64 },
-      caller_id: { type: 'string', maxLength: 64 },
-      cmdb_ci: { type: 'string', maxLength: 64 },
-    },
-    additionalProperties: false,
-  };
+  readonly argsSchema = serviceNowCreateIncidentArgsSchema;
 
   private readonly instanceUrl: string;
   private readonly auth: ServiceNowAuthConfig;

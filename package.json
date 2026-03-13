@@ -11,6 +11,7 @@
     "dev:console": "pnpm --filter console dev",
     "db:up": "node scripts/db-up.mjs",
     "db:down": "docker compose down",
+    "clean": "node scripts/clean.mjs",
     "manual:gateway": "pnpm env:setup && pnpm build && pnpm dev:gateway",
     "manual:full": "pnpm env:setup && pnpm build && pnpm dev",
     "manual": "pnpm db:up && pnpm env:setup && pnpm build && pnpm dev:gateway",
