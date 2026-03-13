@@ -6,6 +6,12 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
+    "dev:gateway": "pnpm --filter gateway dev",
+    "dev:console": "pnpm --filter console dev",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "manual": "pnpm db:up && pnpm build && pnpm dev:gateway",
+    "manual:all": "pnpm db:up && pnpm build && pnpm dev",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",

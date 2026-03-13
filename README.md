@@ -51,6 +51,29 @@ pnpm dev
 
 > Note: `pnpm dev` relies on compiled `dist/` outputs from the packages, so build first.
 
+## Quick commands
+
+```bash
+# Run automated tests
+pnpm test
+
+# Start Postgres only
+pnpm db:up
+
+# Stop the local Docker services
+pnpm db:down
+
+# Start the gateway only for manual API testing
+pnpm manual
+
+# Start gateway + console for manual testing
+pnpm manual:all
+
+# Start just one app if Postgres/build are already handled
+pnpm dev:gateway
+pnpm dev:console
+```
+
 ## Core user flows
 
 ### POST /v1/intercept
@@ -141,6 +164,12 @@ Minimal but useful operations console:
 | Command | Description |
 |---------|-------------|
 | `pnpm dev` | Start gateway + console + packages in watch mode |
+| `pnpm dev:gateway` | Start only the gateway app |
+| `pnpm dev:console` | Start only the console app |
+| `pnpm db:up` | Start local Postgres with Docker |
+| `pnpm db:down` | Stop local Docker services |
+| `pnpm manual` | Start Postgres, build, then run the gateway for manual API testing |
+| `pnpm manual:all` | Start Postgres, build, then run gateway + console |
 | `pnpm build` | Build all packages + apps |
 | `pnpm lint` | Run ESLint across the repo |
 | `pnpm typecheck` | TypeScript type checking |
