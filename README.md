@@ -69,6 +69,12 @@ pnpm manual
 # Start gateway + console for manual testing
 pnpm manual:all
 
+# Start the gateway only when Postgres is already running
+pnpm manual:gateway
+
+# Start gateway + console when dependencies are already running
+pnpm manual:full
+
 # Start just one app if Postgres/build are already handled
 pnpm dev:gateway
 pnpm dev:console
@@ -170,6 +176,8 @@ Minimal but useful operations console:
 | `pnpm db:down` | Stop local Docker services |
 | `pnpm manual` | Start Postgres, build, then run the gateway for manual API testing |
 | `pnpm manual:all` | Start Postgres, build, then run gateway + console |
+| `pnpm manual:gateway` | Build and run only the gateway, assuming Postgres is already available |
+| `pnpm manual:full` | Build and run gateway + console, assuming dependencies are already available |
 | `pnpm build` | Build all packages + apps |
 | `pnpm lint` | Run ESLint across the repo |
 | `pnpm typecheck` | TypeScript type checking |
