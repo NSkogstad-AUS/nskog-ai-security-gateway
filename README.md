@@ -144,8 +144,21 @@ Minimal but useful operations console:
 | `pnpm build` | Build all packages + apps |
 | `pnpm lint` | Run ESLint across the repo |
 | `pnpm typecheck` | TypeScript type checking |
-| `pnpm test` | Runs placeholder suites (returns 0) |
+| `pnpm test` | Build packages/apps and run automated tests |
 | `pnpm format` | Format `.ts/.tsx/.json/.md` files |
+
+## Automated tests
+
+The repo now includes automated tests for core validation and gateway intercept flows.
+
+```bash
+pnpm test
+```
+
+Current test coverage is dependency-free and does not require Postgres or Docker. It exercises:
+
+- schema validation for tool arguments
+- gateway intercept allow/deny/approval/auth branches using Fastify injection
 
 ### Manual migrations
 
