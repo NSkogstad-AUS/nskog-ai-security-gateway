@@ -1,5 +1,13 @@
 import { execSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -22,12 +30,14 @@ function commandExists(command) {
 }
 
 function readDockerConfig() {
-  const configPath = join(homedir(), '.docker', 'config.json');
+  const dir = join(homedir(), '.docker');
+  const configPath = join(dir, 'config.json');
   if (!existsSync(configPath)) return null;
 
   try {
     const raw = readFileSync(configPath, 'utf8');
     return {
+      dir,
       path: configPath,
       json: JSON.parse(raw),
     };
@@ -58,9 +68,16 @@ function sanitizeDockerConfig(config) {
   return sanitized;
 }
 
-function createTempDockerConfigDir(config) {
+function createTempDockerConfigDir(config, sourceDir) {
   const dir = mkdtempSync(join(tmpdir(), 'ai-gateway-docker-'));
   writeFileSync(join(dir, 'config.json'), JSON.stringify(config, null, 2));
+
+  for (const entry of readdirSync(sourceDir)) {
+    if (entry === 'config.json') continue;
+
+    symlinkSync(join(sourceDir, entry), join(dir, entry));
+  }
+
   return dir;
 }
 
@@ -96,7 +113,10 @@ try {
   const env = { ...process.env };
 
   if (desktopCredentialHelperMissing) {
-    tempDockerConfigDir = createTempDockerConfigDir(sanitizeDockerConfig(dockerConfig.json));
+    tempDockerConfigDir = createTempDockerConfigDir(
+      sanitizeDockerConfig(dockerConfig.json),
+      dockerConfig.dir,
+    );
     env.DOCKER_CONFIG = tempDockerConfigDir;
     console.error(
       'docker-credential-desktop is missing; retrying with a temporary Docker config that skips that helper.',

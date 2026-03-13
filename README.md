@@ -57,6 +57,9 @@ pnpm dev
 # Run automated tests
 pnpm test
 
+# Create local env files from examples
+pnpm env:setup
+
 # Start Postgres only
 pnpm db:up
 
@@ -172,6 +175,7 @@ Minimal but useful operations console:
 | `pnpm dev` | Start gateway + console + packages in watch mode |
 | `pnpm dev:gateway` | Start only the gateway app |
 | `pnpm dev:console` | Start only the console app |
+| `pnpm env:setup` | Create `apps/gateway/.env` from the example when missing |
 | `pnpm db:up` | Start local Postgres with Docker |
 | `pnpm db:down` | Stop local Docker services |
 | `pnpm manual` | Start Postgres, build, then run the gateway for manual API testing |
