@@ -39,6 +39,8 @@ function toEvent(row: DbEventRow): AgentSecurityEvent {
 export async function listEvents(options?: {
   correlation_id?: string;
   event_type?: string;
+  tool_name?: string;
+  agent_id?: string;
   limit?: number;
 }): Promise<AgentSecurityEvent[]> {
   const pool = getPool();
@@ -55,13 +57,25 @@ export async function listEvents(options?: {
     params.push(options.event_type);
     where.push(`event_type = $${params.length}`);
   }
+  if (options?.tool_name) {
+    params.push(options.tool_name);
+    where.push(
+      `COALESCE(payload->'intent'->>'tool_name', payload->>'tool_name') = $${params.length}`,
+    );
+  }
+  if (options?.agent_id) {
+    params.push(options.agent_id);
+    where.push(
+      `COALESCE(payload->'intent'->>'agent_id', payload->>'agent_id') = $${params.length}`,
+    );
+  }
 
   params.push(limit);
   const query = `
     SELECT id, correlation_id, event_type, ts, payload
     FROM events
     ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
-    ORDER BY ts DESC
+    ORDER BY ts DESC, id DESC
     LIMIT $${params.length}
   `;
 
@@ -140,7 +154,7 @@ export async function getLatestPolicyTrace(correlationId: string): Promise<{
       FROM events
       WHERE correlation_id = $1
         AND event_type = 'PolicyEvaluated'
-      ORDER BY ts DESC
+      ORDER BY ts DESC, id DESC
       LIMIT 1
     `,
     [correlationId],

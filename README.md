@@ -107,7 +107,7 @@ Intercept tool calls, validate args, evaluate policy, emit timeline events, opti
 ### Events + timelines
 
 - `GET /v1/queue` – read-only view of denied tool calls + pending approvals.
-- `GET /v1/events?limit=...` – recent events, optional `correlation_id`/`event_type` filters.
+- `GET /v1/events?limit=...` – recent events, optional `correlation_id`/`event_type`/`tool_name`/`agent_id` filters.
 - `GET /v1/events/stream` – Server-Sent Events (SSE) stream of new events (for live console refresh).
 - `GET /v1/events/{correlation_id}/timeline` – entire chronological chain for a correlation.
 - `GET /v1/events/{correlation_id}/policy-trace` – latest policy decision, engine, input hash, and trace details.

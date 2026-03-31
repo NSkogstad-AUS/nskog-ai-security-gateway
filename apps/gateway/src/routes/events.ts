@@ -176,6 +176,8 @@ export const eventsRoute: FastifyPluginAsync = async (app) => {
     Querystring: {
       correlation_id?: string;
       event_type?: string;
+      tool_name?: string;
+      agent_id?: string;
       limit?: number;
     };
   }>(
@@ -187,6 +189,8 @@ export const eventsRoute: FastifyPluginAsync = async (app) => {
           properties: {
             correlation_id: { type: 'string' },
             event_type: { type: 'string' },
+            tool_name: { type: 'string' },
+            agent_id: { type: 'string' },
             limit: { type: 'integer', minimum: 1, maximum: 500 },
           },
         },
